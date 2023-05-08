@@ -50,12 +50,14 @@ in this example.
 Your app should make a an API call to connectivly as follows:
 
 ``` bash
-curl -XPOST -H 'X-API-KEY: abc-123' \
+curl -XPOST -H 'X-API-KEY: zWp2kj...' \
     -H "Content-type: application/json" \
     -d '{"user": "test@example.com"}' 'http://localhost:3000/api/auth_session/12345/approve'
 ```
 
-That endpoint will return a `redirect_uri`. Redirect the user there.
+This call is saying "We authorize `test@example.com` to log in."
+
+That endpoint will return a `redirect_uri`. Redirect the user there and connectivly completes the OAuth dance.
 
 #### Flask Example
 
@@ -69,11 +71,11 @@ def connectivly_auth():
     approval = requests.post(
             "http://localhost:3000/api/auth_session/" + session_id + "/approve",
             json={"user": "test@example.com"},
-            headers={"X-API-KEY": "abc-123"},
+            headers={"X-API-KEY": "zWp2kj..."},
     ).json()
     return redirect(approval['redirect_uri'])
 ```
 
-### 3. Try to authenticate
+### 3. Authorize using OAuth
 
 Using one of the Client ID credentials, you can now implement an oauth flow against your application.
