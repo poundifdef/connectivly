@@ -37,8 +37,8 @@ Client ID: client2
 Client Secret: secret2
 ```
 
-The app will listen on `http://localhost:3000`. It will automatically generate
-an API key and example client apps for testing.
+The app will listen on `http://localhost:3000`. The first time it runs, connectivly
+will automatically generate an API key and example client apps for testing.
 
 
 ### 2. Add a `/connectivly` endpoint to your app.
