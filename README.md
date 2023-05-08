@@ -15,14 +15,15 @@ Auth0, Sign In With Google, or other third party identity provider.
 
 ## Getting Started
 
-Connectivly is packaged as a single go binary. You just need to configure 1 options:
+Connectivly is packaged as a single go binary. You just need to configure 1 option:
 a callback URL to your app.
 
 ### 1. Run Connectivly Server
 
 ``` bash
-export CONNECTIVLY_REDIRECT_URL="https://your-app.example.com/connectivly"
+$ export CONNECTIVLY_REDIRECT_URL="https://your-app.example.com/connectivly"
 $ go run connectivly
+
 Listening... http://localhost:3000
 
 API Key: zWp2kjQSmN85saBgeWkWF6Riz1GmQEhR
@@ -52,12 +53,16 @@ Your app should make a an API call to connectivly as follows:
 ``` bash
 curl -XPOST -H 'X-API-KEY: zWp2kj...' \
     -H "Content-type: application/json" \
-    -d '{"user": "test@example.com"}' 'http://localhost:3000/api/auth_session/12345/approve'
+    -d '{"user": "test@example.com"}' \
+    'http://localhost:3000/api/auth_session/12345/approve'
 ```
 
-This call is saying "We authorize `test@example.com` to log in."
+This call is saying "We authorize `test@example.com` to log in." It will return a `redirect_uri`.
+Redirect the user there and connectivly completes the OAuth dance.
 
-That endpoint will return a `redirect_uri`. Redirect the user there and connectivly completes the OAuth dance.
+Before you do this, you can call `GET /api/auth_session/12345`. This returns information about
+the app, end-user, and scopes requested. If you don't want to approve the session, make a POST
+request to `/deny` instead.
 
 #### Flask Example
 
@@ -79,3 +84,4 @@ def connectivly_auth():
 ### 3. Authorize using OAuth
 
 Using one of the Client ID credentials, you can now implement an oauth flow against your application.
+Use "openid" as the scope.

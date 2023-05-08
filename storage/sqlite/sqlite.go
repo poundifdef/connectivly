@@ -49,23 +49,25 @@ type SQLiteStorage struct {
 	provider storage.Provider
 }
 
-func NewSQLiteStorage(filename string, providerURL string, apiKey string) (*SQLiteStorage, error) {
+func NewSQLiteStorage(filename string, providerURL string) (*SQLiteStorage, error) {
 	s := &SQLiteStorage{filename: filename}
 
 	// If the DB is brand new, populate with basic information
 	_, err := os.Stat(s.filename)
 	needs_initialization := err != nil
 
-	db, err := gorm.Open(sqlite.Open(filename), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
-	})
+	gormConfig := &gorm.Config{}
+	if os.Getenv("DEBUG") == "1" {
+		gormConfig.Logger = logger.Default.LogMode(logger.Info)
+	}
+
+	db, err := gorm.Open(sqlite.Open(filename), gormConfig)
 	s.db = db
 
 	// Set up DB tables
 	s.setupDB()
 
 	s.set("provider-redirect-url", providerURL)
-	s.set("api-key", s.Hash(apiKey))
 
 	if needs_initialization {
 		log.Println("Initializing new Connectivly instance at " + filename)
@@ -101,17 +103,34 @@ func (s *SQLiteStorage) initializeNew() error {
 
 	s.set("provider-name", "ACME Service")
 
+	api_key := s.GenerateRandomString(32)
+	s.set("api-key", s.Hash(api_key))
+
+	log.Println()
+	log.Println("API Key: " + api_key)
+	log.Println()
+
 	s.CreateApp(storage.App{
 		Name:         "Client 1 App",
 		ClientID:     "client1",
 		ClientSecret: s.Hash("secret1"),
 	})
 
+	log.Println("Client 1 App")
+	log.Println("Client ID: client1")
+	log.Println("Client Secret: secret1")
+	log.Println()
+
 	s.CreateApp(storage.App{
 		Name:         "Client 2 App",
 		ClientID:     "client2",
 		ClientSecret: s.Hash("secret2"),
 	})
+
+	log.Println("Client 2 App")
+	log.Println("Client ID: client2")
+	log.Println("Client Secret: secret2")
+	log.Println()
 
 	scopes := make([]storage.Scope, 0)
 	scopes = append(scopes, storage.Scope{ID: "openid", Name: "OIDC", Description: "OpenID Connect"})
