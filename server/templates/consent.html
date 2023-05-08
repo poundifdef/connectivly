@@ -1,0 +1,17 @@
+
+{{.app.Name}} wants access to user {{.session.UserID}} on application {{.provider.Name}}
+
+<br><br>
+
+<form method="post" action="{{.post_url}}">
+{{range $scope := .session.Scopes}}
+<input type="checkbox" name="{{$scope}}" value="true" checked>{{$scope}}
+<br>
+{{end}}
+
+<br><br>
+
+<input type="submit" name="accept" value="Accept">
+<input type="submit" name="decline" value="Decline">
+
+</form>

@@ -11,12 +11,12 @@ authenticated endpoint to approve OAuth requests.
 
 Connectivly doesn't "own" your users database - it assumes you're already 
 managing users and accounts in your own application. It work alonside your DB,
-Auth0, Sign In With Google (etc), or other third party identity provider.
+Auth0, Sign In With Google, or other third party identity provider.
 
 ## Getting Started
 
-Connectivly is packaged as a single go binary. You just need to configure 2 options:
-a callback URL to your app and an API key.
+Connectivly is packaged as a single go binary. You just need to configure 1 options:
+a callback URL to your app.
 
 ### 1. Run Connectivly Server
 
