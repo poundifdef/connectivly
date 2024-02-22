@@ -10,15 +10,15 @@ type OAuthParams struct {
 }
 
 type AuthSession struct {
-	ID     string   `json:"id"`
-	App    App      `json:"app"`
-	Scopes []string `json:"scopes"`
+	ID     string   `json:"id" redis:"id"`
+	App    App      `json:"app" redis:"id"`
+	Scopes []string `json:"scopes" redis:"id"`
 }
 
 type Scope struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
+	ID          string `json:"id" redis:"id"`
+	Name        string `json:"name" redis:"name"`
+	Description string `json:"description" redis:"description"`
 }
 
 type Provider interface {
@@ -37,19 +37,19 @@ type App struct {
 }
 
 type OAuthRequest struct {
-	ID           string
-	Expires      int64
-	Code         string
-	Approved     bool
-	UserID       string
-	State        string `query:"state"`
-	ClientID     string `query:"client_id"` // Required
-	RedirectURI  string `query:"redirect_uri"`
-	Scope        string `query:"scope"`         // Required for oidc
-	ResponseType string `query:"response_type"` // Required
-	Nonce        string `query:"nonce,omitempty"`
-	Prompt       string `query:"prompt,omitempty"`
-	MaxAge       string `query:"max_age,omitempty"`
+	ID           string `redis:"id"`
+	Expires      int64  `redis:"expires"`
+	Code         string `redis:"code"`
+	Approved     bool   `redis:"approved"`
+	UserID       string `redis:"user_id"`
+	State        string `query:"state" redis:"state"`
+	ClientID     string `query:"client_id" redis:"client_id"` // Required
+	RedirectURI  string `query:"redirect_uri" redis:"redirect_uri"`
+	Scope        string `query:"scope" redis:"scope"`                 // Required for oidc
+	ResponseType string `query:"response_type" redis:"response_type"` // Required
+	Nonce        string `query:"nonce,omitempty" redis:"nonce"`
+	Prompt       string `query:"prompt,omitempty" redis:"prompt"`
+	MaxAge       string `query:"max_age,omitempty" redis:"max_age"`
 }
 
 func (o OAuthRequest) Scopes() []string {
