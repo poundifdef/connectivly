@@ -13,10 +13,9 @@ RUN go mod download
 
 # Copy the source code into the container
 COPY ./ .
-# COPY build/ ./build
 
 # Build the Go app
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o connectivly .
+RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o connectivly .
 
 # Step 2: Use a small base image and copy the binary from the builder stage
 FROM alpine:latest  
