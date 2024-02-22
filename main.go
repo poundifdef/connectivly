@@ -33,7 +33,7 @@ func main() {
 	authServer := server.AuthServer{Storage: storage}
 	app := authServer.GetAppFiber()
 
-	log.Println("Listening on http://localhost:3000")
+	log.Println("Listening on :3000")
 
 	app.Listen(":3000")
 }

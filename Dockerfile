@@ -15,7 +15,8 @@ RUN go mod download
 COPY ./ .
 
 # Build the Go app
-RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o connectivly .
+# RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o connectivly .
+RUN go build connectivly .
 
 # Step 2: Use a small base image and copy the binary from the builder stage
 FROM alpine:latest  
@@ -29,4 +30,4 @@ WORKDIR /root/
 COPY --from=builder /app/connectivly .
 
 # Command to run the executable
-CMD ["./connectivly"]
+CMD ["/root/connectivly"]
