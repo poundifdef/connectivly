@@ -27,7 +27,7 @@ RUN apk --no-cache add ca-certificates
 WORKDIR /root/
 
 # Copy the Pre-built binary file from the previous stage
-COPY --from=builder /app/connectivly .
+COPY --from=builder /app/connectivly /root/connectivly
 
 # Command to run the executable
 CMD ["/root/connectivly"]
