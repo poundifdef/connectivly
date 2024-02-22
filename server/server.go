@@ -52,7 +52,6 @@ func (a *AuthServer) GenerateIDToken(user_id string, client_id string, nonce str
 	claims["auth_time"] = time.Now().UTC().Unix()
 
 	// Expiration hard-coded to 30 minutes. TODO: make configurable
-	// TODO: make configurable
 	claims["exp"] = time.Now().UTC().Add(30 * time.Minute).Unix()
 
 	j := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)

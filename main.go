@@ -1,10 +1,13 @@
 package main
 
 import (
-	"connectivly/server"
-	"connectivly/storage/sqlite"
 	"log"
 	"os"
+
+	"connectivly/server"
+	"connectivly/storage"
+	"connectivly/storage/redis"
+	"connectivly/storage/sqlite"
 )
 
 func main() {
@@ -15,9 +18,19 @@ func main() {
 		log.Fatal("Environment variable CONNECTIVLY_REDIRECT_URL required")
 	}
 
-	s, _ := sqlite.NewSQLiteStorage("connectivly.db", redirectUrl)
+	storageType := os.Getenv("STORAGE")
 
-	authServer := server.AuthServer{Storage: s}
+	var storage storage.Storage
+
+	switch storageType {
+	case "sqlite":
+		storage, _ = sqlite.NewSQLiteStorage("connectivly.db", redirectUrl)
+	case "redis":
+		redisConnectionString := os.Getenv("REDIS_CONNECTION_STRING")
+		storage, _ = redis.NewRedisStorage(redisConnectionString, redirectUrl)
+	}
+
+	authServer := server.AuthServer{Storage: storage}
 	app := authServer.GetAppFiber()
 
 	log.Println("Listening on http://localhost:3000")
