@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"connectivly/storage"
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha512"
@@ -25,15 +26,15 @@ type SQLiteStorageProvider struct {
 	storage *SQLiteStorage
 }
 
-func (m SQLiteStorageProvider) Name() string {
+func (m SQLiteStorageProvider) Name(ctx context.Context) string {
 	return m.storage.get("provider-name")
 }
 
-func (m SQLiteStorageProvider) Logo() []byte {
+func (m SQLiteStorageProvider) Logo(ctx context.Context) []byte {
 	return make([]byte, 0)
 }
 
-func (m SQLiteStorageProvider) Scopes() []storage.Scope {
+func (m SQLiteStorageProvider) Scopes(ctx context.Context) []storage.Scope {
 	rc := make([]storage.Scope, 0)
 	scopes_json := m.storage.get("provider-scopes")
 	err := json.Unmarshal([]byte(scopes_json), &rc)
@@ -62,6 +63,9 @@ func NewSQLiteStorage(filename string, providerURL string) (*SQLiteStorage, erro
 	}
 
 	db, err := gorm.Open(sqlite.Open(filename), gormConfig)
+	if err != nil {
+		return nil, err
+	}
 	s.db = db
 
 	// Set up DB tables
@@ -94,6 +98,7 @@ func (s *SQLiteStorage) setupDB() error {
 
 func (s *SQLiteStorage) initializeNew() error {
 	// Generate keypair for JWTs
+	ctx := context.Background()
 	key, err := rsa.GenerateKey(rand.Reader, 4096)
 	if err != nil {
 		log.Fatal(err)
@@ -110,7 +115,7 @@ func (s *SQLiteStorage) initializeNew() error {
 	log.Println("API Key: " + api_key)
 	log.Println()
 
-	s.CreateApp(storage.App{
+	s.CreateApp(ctx, storage.App{
 		Name:         "Client 1 App",
 		ClientID:     "client1",
 		ClientSecret: s.Hash("secret1"),
@@ -121,7 +126,7 @@ func (s *SQLiteStorage) initializeNew() error {
 	log.Println("Client Secret: secret1")
 	log.Println()
 
-	s.CreateApp(storage.App{
+	s.CreateApp(ctx, storage.App{
 		Name:         "Client 2 App",
 		ClientID:     "client2",
 		ClientSecret: s.Hash("secret2"),
@@ -170,41 +175,41 @@ func (s *SQLiteStorage) set(k string, v string) {
 	}).Create(&kv)
 }
 
-func (s *SQLiteStorage) ValidateAPIKey(input string) bool {
+func (s *SQLiteStorage) ValidateAPIKey(ctx context.Context, input string) bool {
 	return s.Hash(input) == s.get("api-key")
 }
 
-func (s *SQLiteStorage) GetRSAPublicKey() (*rsa.PublicKey, string, error) {
+func (s *SQLiteStorage) GetRSAPublicKey(ctx context.Context) (*rsa.PublicKey, string, error) {
 	privateKeyBytes := s.getBytes("private-key")
 	keyId := s.get("private-key-id")
 	privateKey, _ := x509.ParsePKCS1PrivateKey(privateKeyBytes)
 	return &privateKey.PublicKey, keyId, nil
 }
 
-func (s *SQLiteStorage) GetRSAPrivateKey() (*rsa.PrivateKey, string, error) {
+func (s *SQLiteStorage) GetRSAPrivateKey(ctx context.Context) (*rsa.PrivateKey, string, error) {
 	privateKeyBytes := s.getBytes("private-key")
 	keyId := s.get("private-key-id")
 	privateKey, _ := x509.ParsePKCS1PrivateKey(privateKeyBytes)
 	return privateKey, keyId, nil
 }
 
-func (s *SQLiteStorage) GetProvider() storage.Provider {
+func (s *SQLiteStorage) GetProvider(ctx context.Context) storage.Provider {
 	return s.provider
 }
 
-func (s *SQLiteStorage) GetOAuthProviderParams() storage.OAuthParams {
+func (s *SQLiteStorage) GetOAuthProviderParams(ctx context.Context) storage.OAuthParams {
 	rc := storage.OAuthParams{
 		ProviderRedirectURL: s.get("provider-redirect-url"),
 	}
 	return rc
 }
 
-func (s *SQLiteStorage) SaveOAuthRequest(token string, request storage.OAuthRequest) error {
+func (s *SQLiteStorage) SaveOAuthRequest(ctx context.Context, token string, request storage.OAuthRequest) error {
 	rc := s.db.Create(&request)
 	return rc.Error
 }
 
-func (s *SQLiteStorage) GetAuthRequest(id string, approvalRequired bool) storage.OAuthRequest {
+func (s *SQLiteStorage) GetAuthRequest(ctx context.Context, id string, approvalRequired bool) storage.OAuthRequest {
 	rc := OAuthRequest{}
 
 	if approvalRequired {
@@ -216,7 +221,7 @@ func (s *SQLiteStorage) GetAuthRequest(id string, approvalRequired bool) storage
 	return rc.toStorageOAuthRequest()
 }
 
-func (s *SQLiteStorage) GetAuthRequestByCode(code string) storage.OAuthRequest {
+func (s *SQLiteStorage) GetAuthRequestByCode(ctx context.Context, code string) storage.OAuthRequest {
 	rc := OAuthRequest{}
 	s.db.Where("code = ? AND expires >= ? AND approved = ?", code, time.Now().UTC().Unix(), true).First(&rc)
 	return rc.toStorageOAuthRequest()
@@ -240,7 +245,7 @@ func (s *SQLiteStorage) GenerateRandomString(length uint) string {
 	return *pwd
 }
 
-func (s *SQLiteStorage) ApproveAuthRequest(id string, user_id string) error {
+func (s *SQLiteStorage) ApproveAuthRequest(ctx context.Context, id string, user_id string) error {
 	// rc := s.db.Model(&OAuthRequest{}).Where("id=?", id).Update("approved", true).Update("user_id", user_id)
 	rc := s.db.Model(&OAuthRequest{}).Where("id=?", id).Updates(&OAuthRequest{Approved: true, UserID: user_id})
 	log.Println(rc.Error)
@@ -248,11 +253,11 @@ func (s *SQLiteStorage) ApproveAuthRequest(id string, user_id string) error {
 	return rc.Error
 }
 
-func (s *SQLiteStorage) DeleteAuthRequest(id string) {
+func (s *SQLiteStorage) DeleteAuthRequest(ctx context.Context, id string) {
 	s.db.Model(&OAuthRequest{}).Where("id=?", id).Delete(&OAuthRequest{})
 }
 
-func (s *SQLiteStorage) CreateApp(app storage.App) (storage.App, error) {
+func (s *SQLiteStorage) CreateApp(ctx context.Context, app storage.App) (storage.App, error) {
 	obj := App{
 		Name:         app.Name,
 		ClientID:     app.ClientID,
@@ -269,7 +274,7 @@ func (s *SQLiteStorage) CreateApp(app storage.App) (storage.App, error) {
 	return storage_app, rc.Error
 }
 
-func (s *SQLiteStorage) GetApp(clientid string) storage.App {
+func (s *SQLiteStorage) GetApp(ctx context.Context, clientid string) storage.App {
 	rc := App{}
 	s.db.Where("client_id = ?", clientid).First(&rc)
 	return storage.App{
@@ -280,7 +285,7 @@ func (s *SQLiteStorage) GetApp(clientid string) storage.App {
 	}
 }
 
-func (s *SQLiteStorage) SaveOAuthToken(o storage.StoredOAuthToken) error {
+func (s *SQLiteStorage) SaveOAuthToken(ctx context.Context, o storage.StoredOAuthToken) error {
 	obj := StoredOAuthToken{
 		HashedAccessToken:   o.HashedAccessToken,
 		AccessTokenExpires:  o.AccessTokenExpires,
@@ -294,19 +299,19 @@ func (s *SQLiteStorage) SaveOAuthToken(o storage.StoredOAuthToken) error {
 	return rc.Error
 }
 
-func (s *SQLiteStorage) GetOAuthTokenByHashedAccessToken(token string) storage.StoredOAuthToken {
+func (s *SQLiteStorage) GetOAuthTokenByHashedAccessToken(ctx context.Context, token string) storage.StoredOAuthToken {
 	rc := StoredOAuthToken{}
 	s.db.Where("hashed_access_token = ? AND access_token_expires >= ?", token, time.Now().UTC().Unix()).First(&rc)
 	return rc.toStorageOAuthToken()
 }
 
-func (s *SQLiteStorage) GetOAuthTokenByHashedRefreshToken(token string) storage.StoredOAuthToken {
+func (s *SQLiteStorage) GetOAuthTokenByHashedRefreshToken(ctx context.Context, token string) storage.StoredOAuthToken {
 	rc := StoredOAuthToken{}
 	s.db.Where("hashed_refresh_token = ? AND refresh_token_expires >= ?", token, time.Now().UTC().Unix()).First(&rc)
 	return rc.toStorageOAuthToken()
 }
 
-func (s *SQLiteStorage) InvalidateOAuthTokenByHashedAccessToken(token string) error {
+func (s *SQLiteStorage) InvalidateOAuthTokenByHashedAccessToken(ctx context.Context, token string) error {
 	rc := s.db.Where("hashed_access_token = ?", token).Delete(&StoredOAuthToken{})
 	return rc.Error
 }

@@ -289,7 +289,6 @@ func (s *RedisStorage) CreateApp(ctx context.Context, app storage.App) (storage.
 }
 
 func (s *RedisStorage) GetApp(ctx context.Context, clientid string) storage.App {
-	log.Println(clientid)
 	rc := App{}
 
 	clientAppKey := CLIENT_APP + clientid

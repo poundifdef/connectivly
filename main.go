@@ -1,12 +1,12 @@
 package main
 
 import (
-	"log"
-	"os"
-
 	"connectivly/server"
 	"connectivly/storage"
 	"connectivly/storage/redis"
+	"connectivly/storage/sqlite"
+	"log"
+	"os"
 )
 
 func main() {
@@ -23,7 +23,7 @@ func main() {
 
 	switch storageType {
 	case "sqlite":
-		// storage, _ = sqlite.NewSQLiteStorage("connectivly.db", redirectUrl)
+		storage, _ = sqlite.NewSQLiteStorage("connectivly.db", redirectUrl)
 	case "redis":
 		redisConnectionString := os.Getenv("REDIS_CONNECTION_STRING")
 		storage, _ = redis.NewRedisStorage(redisConnectionString, redirectUrl)
