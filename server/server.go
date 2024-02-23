@@ -16,6 +16,7 @@ import (
 	"github.com/MicahParks/jwkset"
 	"github.com/gofiber/adaptor/v2"
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/filesystem"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/template/html/v2"
 	"github.com/golang-jwt/jwt/v5"
@@ -581,6 +582,11 @@ func (a *AuthServer) GetAppFiber() *fiber.App {
 	})
 
 	app.Use(logger.New())
+
+	app.Use("/static", filesystem.New(filesystem.Config{
+		Root:       http.FS(serverRoot),
+		PathPrefix: "static",
+	}))
 
 	// Endpoints intended for the provider for manging sessions
 	api := app.Group("/api", a.APIKeyMiddleware)
