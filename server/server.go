@@ -33,7 +33,7 @@ type AuthServer struct {
 // the end user. This is required for OIDC. Satisfies this spec:
 // https://openid.net/specs/openid-connect-core-1_0.html#IDToken
 func (a *AuthServer) GenerateIDToken(user_id string, client_id string, nonce string) string {
-	key, key_id, err := a.Storage.GetRSAPrivateKey()
+	key, key_id, err := a.Storage.GetRSAPrivateKey(context.Background())
 	if err != nil {
 		log.Println(err)
 		return ""
@@ -89,7 +89,10 @@ func (a *AuthServer) GenerateJWT(user_id string, scopes []string, app storage.Ap
 }
 
 func (a *AuthServer) APIKeyMiddleware(c *fiber.Ctx) error {
-	provider := a.Storage.GetProvider()
+	// ctx := context.Background()
+	// c.Con
+
+	provider := a.Storage.GetProvider(c.Context())
 
 	if provider == nil {
 		return c.SendStatus(400)
