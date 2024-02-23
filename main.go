@@ -1,13 +1,12 @@
 package main
 
 import (
-	"log"
-	"os"
-
 	"connectivly/server"
 	"connectivly/storage"
 	"connectivly/storage/redis"
 	"connectivly/storage/sqlite"
+	"log"
+	"os"
 )
 
 func main() {

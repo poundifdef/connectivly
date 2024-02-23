@@ -17,7 +17,7 @@ import (
 	"github.com/gofiber/adaptor/v2"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/logger"
-	"github.com/gofiber/template/html"
+	"github.com/gofiber/template/html/v2"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/ugurcsen/gods-generic/sets/hashset"
 )
@@ -33,14 +33,13 @@ type AuthServer struct {
 // the end user. This is required for OIDC. Satisfies this spec:
 // https://openid.net/specs/openid-connect-core-1_0.html#IDToken
 func (a *AuthServer) GenerateIDToken(user_id string, client_id string, nonce string) string {
-	key, key_id, err := a.Storage.GetRSAPrivateKey()
+	key, key_id, err := a.Storage.GetRSAPrivateKey(context.Background())
 	if err != nil {
 		log.Println(err)
 		return ""
 	}
 
 	claims := make(jwt.MapClaims)
-
 	// TODO: make this user-configurable
 	claims["iss"] = "https://www.connectivly.com"
 	claims["sub"] = user_id
@@ -67,7 +66,7 @@ func (a *AuthServer) GenerateIDToken(user_id string, client_id string, nonce str
 
 // GenerateJWT creates JWTs that will be used as OAuth Bearer tokens
 func (a *AuthServer) GenerateJWT(user_id string, scopes []string, app storage.App, expiration time.Duration) string {
-	key, _, err := a.Storage.GetRSAPrivateKey()
+	key, _, err := a.Storage.GetRSAPrivateKey(context.Background())
 	if err != nil {
 		log.Println(err)
 		return ""
@@ -89,14 +88,14 @@ func (a *AuthServer) GenerateJWT(user_id string, scopes []string, app storage.Ap
 }
 
 func (a *AuthServer) APIKeyMiddleware(c *fiber.Ctx) error {
-	provider := a.Storage.GetProvider()
+	provider := a.Storage.GetProvider(c.Context())
 
 	if provider == nil {
 		return c.SendStatus(400)
 	}
 
 	api_key := c.Get("X-API-KEY")
-	if !a.Storage.ValidateAPIKey(api_key) {
+	if !a.Storage.ValidateAPIKey(context.Background(), api_key) {
 		return c.SendStatus(401)
 	}
 
@@ -105,8 +104,10 @@ func (a *AuthServer) APIKeyMiddleware(c *fiber.Ctx) error {
 
 func (a *AuthServer) GetAuthSession(c *fiber.Ctx) error {
 	session_id := c.Params("id")
-	session := a.Storage.GetAuthRequest(session_id, false)
-	app := a.Storage.GetApp(session.ClientID)
+
+	ctx := context.Background()
+	session := a.Storage.GetAuthRequest(ctx, session_id, false)
+	app := a.Storage.GetApp(ctx, session.ClientID)
 
 	if session.ID == "" || app.ID == 0 {
 		return c.SendStatus(404)
@@ -135,7 +136,7 @@ func (a *AuthServer) ApproveAuthSession(c *fiber.Ctx) error {
 		return err
 	}
 
-	err := a.Storage.ApproveAuthRequest(session_id, approve_input.User)
+	err := a.Storage.ApproveAuthRequest(context.Background(), session_id, approve_input.User)
 	if err != nil {
 		return err
 	}
@@ -153,16 +154,17 @@ func (a *AuthServer) ApproveAuthSession(c *fiber.Ctx) error {
 func (a *AuthServer) IntrospectToken(c *fiber.Ctx) error {
 	// This is NOT an oauth endpoint, it is an API endpoint for the provider
 
+	ctx := context.Background()
 	token := c.FormValue("token")
 
-	t := a.Storage.GetOAuthTokenByHashedAccessToken(a.Storage.Hash(token))
+	t := a.Storage.GetOAuthTokenByHashedAccessToken(ctx, a.Storage.Hash(token))
 	if t.HashedAccessToken != "" {
 		return c.JSON(fiber.Map{
 			"active": true,
 		})
 	}
 
-	t = a.Storage.GetOAuthTokenByHashedRefreshToken(a.Storage.Hash(token))
+	t = a.Storage.GetOAuthTokenByHashedRefreshToken(ctx, a.Storage.Hash(token))
 	if t.HashedAccessToken != "" {
 		return c.JSON(fiber.Map{
 			"active": true,
@@ -175,7 +177,7 @@ func (a *AuthServer) IntrospectToken(c *fiber.Ctx) error {
 func (a *AuthServer) DenyAuthSession(c *fiber.Ctx) error {
 	session_id := c.Params("id")
 
-	a.Storage.DeleteAuthRequest(session_id)
+	a.Storage.DeleteAuthRequest(context.Background(), session_id)
 
 	location, err := c.GetRouteURL("oauth.consent", fiber.Map{"id": session_id})
 	if err != nil {
@@ -188,19 +190,36 @@ func (a *AuthServer) DenyAuthSession(c *fiber.Ctx) error {
 }
 
 func (a *AuthServer) JWKS(c *fiber.Ctx) error {
+	ctx := context.Background()
 
-	key, key_name, err := a.Storage.GetRSAPublicKey()
+	key, key_name, err := a.Storage.GetRSAPublicKey(ctx)
 	if err != nil {
 		return err
 	}
 
-	set := jwkset.NewMemory[any]()
-	err = set.Store.WriteKey(context.TODO(), jwkset.NewKey[any](key, key_name))
+	set := jwkset.NewMemoryStorage()
+
+	marshal := jwkset.JWKMarshalOptions{
+		Private: true,
+	}
+	metadata := jwkset.JWKMetadataOptions{
+		KID: key_name,
+	}
+	options := jwkset.JWKOptions{
+		Marshal:  marshal,
+		Metadata: metadata,
+	}
+	jwk, err := jwkset.NewJWKFromKey(key, options)
 	if err != nil {
 		return err
 	}
 
-	response, err := set.JSONPublic(context.TODO())
+	err = set.KeyWrite(ctx, jwk)
+	if err != nil {
+		return err
+	}
+
+	response, err := set.JSONPublic(ctx)
 	if err != nil {
 		return err
 	}
@@ -209,25 +228,26 @@ func (a *AuthServer) JWKS(c *fiber.Ctx) error {
 }
 
 func (a *AuthServer) ShowConsent(c *fiber.Ctx) error {
+	ctx := context.Background()
 	session_id := c.Params("id")
 
-	session := a.Storage.GetAuthRequest(session_id, true)
+	session := a.Storage.GetAuthRequest(ctx, session_id, true)
 	if session.ID == "" {
 		return c.SendStatus(404)
 	}
 
-	app := a.Storage.GetApp(session.ClientID)
+	app := a.Storage.GetApp(ctx, session.ClientID)
 	if app.ID == 0 {
 		return c.SendStatus(404)
 	}
 
-	provider := a.Storage.GetProvider()
+	provider := a.Storage.GetProvider(ctx)
 	if provider == nil {
 		return c.SendStatus(404)
 	}
 
 	available_scopes := hashset.New[string]()
-	for _, s := range provider.Scopes() {
+	for _, s := range provider.Scopes(ctx) {
 		available_scopes.Add(s.ID)
 	}
 	if !available_scopes.Contains(session.Scopes()...) {
@@ -240,18 +260,19 @@ func (a *AuthServer) ShowConsent(c *fiber.Ctx) error {
 	}
 
 	return c.Render("consent", fiber.Map{
-		"app":      app,
-		"session":  session,
-		"provider": provider,
-		"post_url": c.Protocol() + "://" + c.Hostname() + location,
+		"app":          app,
+		"session":      session,
+		"providerName": provider.Name(ctx),
+		"post_url":     c.Protocol() + "://" + c.Hostname() + location,
 	})
 }
 
 func (a *AuthServer) FinalizeConsent(c *fiber.Ctx) error {
 	// TODO: update scopes if they were modified
 
+	ctx := context.Background()
 	session_id := c.Params("id")
-	session := a.Storage.GetAuthRequest(session_id, true)
+	session := a.Storage.GetAuthRequest(ctx, session_id, true)
 
 	var redirect_params string
 	if c.FormValue("accept") != "" {
@@ -262,7 +283,7 @@ func (a *AuthServer) FinalizeConsent(c *fiber.Ctx) error {
 	} else {
 		redirect_params = ("?error=access_denied" +
 			"&state=" + session.State)
-		a.Storage.DeleteAuthRequest(session_id)
+		a.Storage.DeleteAuthRequest(ctx, session_id)
 	}
 
 	return c.Redirect(session.RedirectURI + redirect_params)
@@ -270,7 +291,9 @@ func (a *AuthServer) FinalizeConsent(c *fiber.Ctx) error {
 
 func (a *AuthServer) Authorize(c *fiber.Ctx) error {
 	// TODO: check client_id
-	providerParams := a.Storage.GetOAuthProviderParams()
+	ctx := context.Background()
+
+	providerParams := a.Storage.GetOAuthProviderParams(ctx)
 
 	oauth_request := storage.OAuthRequest{}
 	err := c.QueryParser(&oauth_request)
@@ -319,7 +342,7 @@ func (a *AuthServer) Authorize(c *fiber.Ctx) error {
 	oauth_request.Code = a.Storage.GenerateRandomString(32)
 
 	// TODO: return error format
-	err = a.Storage.SaveOAuthRequest(oauth_request.ID, oauth_request)
+	err = a.Storage.SaveOAuthRequest(ctx, oauth_request.ID, oauth_request)
 	if err != nil {
 		return err
 	}
@@ -329,6 +352,7 @@ func (a *AuthServer) Authorize(c *fiber.Ctx) error {
 
 func (a *AuthServer) Token(c *fiber.Ctx) error {
 	// TODO: update scopes if they were modified
+	ctx := context.Background()
 
 	token_request := storage.TokenRequest{}
 	err := c.BodyParser(&token_request)
@@ -341,7 +365,7 @@ func (a *AuthServer) Token(c *fiber.Ctx) error {
 	}
 
 	client_id, client_secret := a.getClientCreds(c)
-	app := a.Storage.GetApp(client_id)
+	app := a.Storage.GetApp(ctx, client_id)
 
 	if app.ID == 0 {
 		return c.Status(400).JSON(fiber.Map{
@@ -370,8 +394,8 @@ func (a *AuthServer) Token(c *fiber.Ctx) error {
 
 	if token_request.GrantType == "authorization_code" {
 
-		session := a.Storage.GetAuthRequestByCode(token_request.Code)
-		a.Storage.DeleteAuthRequest(session.ID)
+		session := a.Storage.GetAuthRequestByCode(ctx, token_request.Code)
+		a.Storage.DeleteAuthRequest(ctx, session.ID)
 
 		if session.ID == "" {
 			return c.Status(400).JSON(fiber.Map{
@@ -411,11 +435,11 @@ func (a *AuthServer) Token(c *fiber.Ctx) error {
 			UserID:              token.UserID,
 		}
 
-		a.Storage.SaveOAuthToken(stored_token)
+		a.Storage.SaveOAuthToken(ctx, stored_token)
 
 		return c.JSON(token)
 	} else if token_request.GrantType == "refresh_token" {
-		session := a.Storage.GetOAuthTokenByHashedRefreshToken(a.Storage.Hash(token_request.RefreshToken))
+		session := a.Storage.GetOAuthTokenByHashedRefreshToken(ctx, a.Storage.Hash(token_request.RefreshToken))
 		if session.HashedAccessToken == "" {
 			return c.JSON(fiber.Map{
 				"error":             "invalid_grant",
@@ -446,10 +470,10 @@ func (a *AuthServer) Token(c *fiber.Ctx) error {
 			UserID:              token.UserID,
 		}
 
-		a.Storage.SaveOAuthToken(stored_token)
+		a.Storage.SaveOAuthToken(ctx, stored_token)
 
 		// Invalidate previous token
-		a.Storage.InvalidateOAuthTokenByHashedAccessToken(session.HashedAccessToken)
+		a.Storage.InvalidateOAuthTokenByHashedAccessToken(ctx, session.HashedAccessToken)
 
 		// Return new token
 		c.Append("Cache-Control", "no-store")
@@ -489,7 +513,12 @@ func (a *AuthServer) OpenIDConfiguration(c *fiber.Ctx) error {
 func (a *AuthServer) getBearerToken(c *fiber.Ctx) string {
 	bearer := ""
 
-	auth_header := c.GetReqHeaders()["Authorization"]
+	auth_headers := c.GetReqHeaders()["Authorization"]
+	if len(auth_headers) != 1 {
+		return bearer
+	}
+
+	auth_header := auth_headers[0]
 	tokens := strings.Split(auth_header, " ")
 	if len(tokens) == 2 {
 		bearer = strings.Split(auth_header, " ")[1]
@@ -505,7 +534,7 @@ func (a *AuthServer) getBearerToken(c *fiber.Ctx) string {
 func (a *AuthServer) Userinfo(c *fiber.Ctx) error {
 	token := a.getBearerToken(c)
 
-	t := a.Storage.GetOAuthTokenByHashedAccessToken(a.Storage.Hash(token))
+	t := a.Storage.GetOAuthTokenByHashedAccessToken(context.Background(), a.Storage.Hash(token))
 	if t.HashedAccessToken == "" {
 		c.Append("WWW-Authenticate", "error=\"invalid_token\"")
 		return c.SendStatus(401)
@@ -517,7 +546,12 @@ func (a *AuthServer) Userinfo(c *fiber.Ctx) error {
 }
 
 func (a *AuthServer) getClientCreds(c *fiber.Ctx) (client_id string, client_secret string) {
-	auth_header := c.GetReqHeaders()["Authorization"]
+	auth_headers := c.GetReqHeaders()["Authorization"]
+	if len(auth_headers) != 1 {
+		return
+	}
+
+	auth_header := auth_headers[0]
 	bearer := strings.Split(auth_header, " ")[1]
 	client_token, err := base64.StdEncoding.DecodeString(bearer)
 	if err != nil {
@@ -542,7 +576,8 @@ func (a *AuthServer) GetAppFiber() *fiber.App {
 	}
 	engine := html.NewFileSystem(http.FS(serverRoot), ".html")
 	app := fiber.New(fiber.Config{
-		Views: engine,
+		Views:     engine,
+		Immutable: true,
 	})
 
 	app.Use(logger.New())

@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"crypto/rsa"
 	"strings"
 )
@@ -22,9 +23,9 @@ type Scope struct {
 }
 
 type Provider interface {
-	Name() string
-	Logo() []byte
-	Scopes() []Scope
+	Name(ctx context.Context) string
+	Logo(ctx context.Context) []byte
+	Scopes(ctx context.Context) []Scope
 }
 
 type App struct {
@@ -93,20 +94,20 @@ type StoredOAuthToken struct {
 type Storage interface {
 	GenerateRandomString(length uint) string
 	Hash(input string) string
-	GetProvider() Provider
-	GetApp(clientid string) App
-	CreateApp(app App) (App, error)
-	GetAuthRequestByCode(code string) OAuthRequest
-	GetAuthRequest(id string, approvalRequired bool) OAuthRequest
-	ApproveAuthRequest(id string, user_id string) error
-	DeleteAuthRequest(id string)
-	ValidateAPIKey(api_key string) bool
-	GetOAuthProviderParams() OAuthParams
-	SaveOAuthRequest(token string, request OAuthRequest) error
-	SaveOAuthToken(token StoredOAuthToken) error
-	GetOAuthTokenByHashedAccessToken(token string) StoredOAuthToken
-	GetOAuthTokenByHashedRefreshToken(token string) StoredOAuthToken
-	InvalidateOAuthTokenByHashedAccessToken(token string) error
-	GetRSAPublicKey() (*rsa.PublicKey, string, error)
-	GetRSAPrivateKey() (*rsa.PrivateKey, string, error)
+	GetProvider(ctx context.Context) Provider
+	GetApp(ctx context.Context, clientid string) App
+	CreateApp(ctx context.Context, app App) (App, error)
+	GetAuthRequestByCode(ctx context.Context, code string) OAuthRequest
+	GetAuthRequest(ctx context.Context, id string, approvalRequired bool) OAuthRequest
+	ApproveAuthRequest(ctx context.Context, id string, user_id string) error
+	DeleteAuthRequest(ctx context.Context, id string)
+	ValidateAPIKey(ctx context.Context, api_key string) bool
+	GetOAuthProviderParams(ctx context.Context) OAuthParams
+	SaveOAuthRequest(ctx context.Context, token string, request OAuthRequest) error
+	SaveOAuthToken(ctx context.Context, token StoredOAuthToken) error
+	GetOAuthTokenByHashedAccessToken(ctx context.Context, token string) StoredOAuthToken
+	GetOAuthTokenByHashedRefreshToken(ctx context.Context, token string) StoredOAuthToken
+	InvalidateOAuthTokenByHashedAccessToken(ctx context.Context, token string) error
+	GetRSAPublicKey(ctx context.Context) (*rsa.PublicKey, string, error)
+	GetRSAPrivateKey(ctx context.Context) (*rsa.PrivateKey, string, error)
 }

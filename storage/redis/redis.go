@@ -38,17 +38,17 @@ type RedisStorageProvider struct {
 	db *redis.Client
 }
 
-func (m RedisStorageProvider) Name() string {
-	return m.db.Get(context.TODO(), PROVIDER_NAME).Val()
+func (s RedisStorageProvider) Name(ctx context.Context) string {
+	return s.db.Get(ctx, PROVIDER_NAME).Val()
 }
 
-func (m RedisStorageProvider) Logo() []byte {
+func (s RedisStorageProvider) Logo(ctx context.Context) []byte {
 	return make([]byte, 0)
 }
 
-func (m RedisStorageProvider) Scopes() []storage.Scope {
+func (s RedisStorageProvider) Scopes(ctx context.Context) []storage.Scope {
 	rc := make([]storage.Scope, 0)
-	scopes_json := m.db.Get(context.TODO(), PROVIDER_SCOPES).Val()
+	scopes_json := s.db.Get(ctx, PROVIDER_SCOPES).Val()
 	err := json.Unmarshal([]byte(scopes_json), &rc)
 	if err != nil {
 		log.Println(err)
@@ -63,6 +63,8 @@ type RedisStorage struct {
 }
 
 func NewRedisStorage(connectionString string, providerURL string) (*RedisStorage, error) {
+	ctx := context.Background()
+
 	opt, err := redis.ParseURL(connectionString)
 	if err != nil {
 		return nil, err
@@ -72,10 +74,10 @@ func NewRedisStorage(connectionString string, providerURL string) (*RedisStorage
 	s := &RedisStorage{db: client}
 
 	// If the DB is brand new, populate with basic information
-	redirectURL := client.Get(context.TODO(), PROVIDER_REDIRECT_URL).Val()
+	redirectURL := client.Get(ctx, PROVIDER_REDIRECT_URL).Val()
 	needs_initialization := redirectURL == ""
 
-	res := client.Set(context.TODO(), PROVIDER_REDIRECT_URL, providerURL, 0)
+	res := client.Set(ctx, PROVIDER_REDIRECT_URL, providerURL, 0)
 	if res.Err() != nil {
 		return nil, res.Err()
 	}
@@ -83,7 +85,7 @@ func NewRedisStorage(connectionString string, providerURL string) (*RedisStorage
 	if needs_initialization {
 		log.Println("Initializing new Connectivly instance on Redis")
 
-		err := s.initializeNew()
+		err := s.initializeNew(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -94,25 +96,25 @@ func NewRedisStorage(connectionString string, providerURL string) (*RedisStorage
 	return s, nil
 }
 
-func (s *RedisStorage) initializeNew() error {
+func (s *RedisStorage) initializeNew(ctx context.Context) error {
 	// Generate keypair for JWTs
 	key, err := rsa.GenerateKey(rand.Reader, 4096)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	s.db.Set(context.TODO(), PRIVATE_KEY, x509.MarshalPKCS1PrivateKey(key), 0)
-	s.db.Set(context.TODO(), PRIVATE_KEY_ID, "connectively-key", 0)
-	s.db.Set(context.TODO(), PROVIDER_NAME, "ACME Service", 0)
+	s.db.Set(ctx, PRIVATE_KEY, x509.MarshalPKCS1PrivateKey(key), 0)
+	s.db.Set(ctx, PRIVATE_KEY_ID, "connectively-key", 0)
+	s.db.Set(ctx, PROVIDER_NAME, "ACME Service", 0)
 
 	api_key := s.GenerateRandomString(32)
-	s.db.Set(context.TODO(), API_KEY, s.Hash(api_key), 0)
+	s.db.Set(ctx, API_KEY, s.Hash(api_key), 0)
 
 	log.Println()
 	log.Println("API Key: " + api_key)
 	log.Println()
 
-	s.CreateApp(storage.App{
+	s.CreateApp(ctx, storage.App{
 		Name:         "Client 1 App",
 		ClientID:     "client1",
 		ClientSecret: s.Hash("secret1"),
@@ -123,7 +125,7 @@ func (s *RedisStorage) initializeNew() error {
 	log.Println("Client Secret: secret1")
 	log.Println()
 
-	s.CreateApp(storage.App{
+	s.CreateApp(ctx, storage.App{
 		Name:         "Client 2 App",
 		ClientID:     "client2",
 		ClientSecret: s.Hash("secret2"),
@@ -146,42 +148,42 @@ func (s *RedisStorage) initializeNew() error {
 	return nil
 }
 
-func (s *RedisStorage) ValidateAPIKey(input string) bool {
-	return s.Hash(input) == s.db.Get(context.TODO(), API_KEY).Val()
+func (s *RedisStorage) ValidateAPIKey(ctx context.Context, input string) bool {
+	return s.Hash(input) == s.db.Get(ctx, API_KEY).Val()
 }
 
-func (s *RedisStorage) GetRSAPublicKey() (*rsa.PublicKey, string, error) {
-	privateKeyBytes, err := s.db.Get(context.TODO(), PRIVATE_KEY).Bytes()
+func (s *RedisStorage) GetRSAPublicKey(ctx context.Context) (*rsa.PublicKey, string, error) {
+	privateKeyBytes, err := s.db.Get(ctx, PRIVATE_KEY).Bytes()
 	if err != nil {
 		return nil, "", err
 	}
-	keyId := s.db.Get(context.TODO(), PRIVATE_KEY_ID).Val()
+	keyId := s.db.Get(ctx, PRIVATE_KEY_ID).Val()
 	privateKey, _ := x509.ParsePKCS1PrivateKey(privateKeyBytes)
 	return &privateKey.PublicKey, keyId, nil
 }
 
-func (s *RedisStorage) GetRSAPrivateKey() (*rsa.PrivateKey, string, error) {
-	privateKeyBytes, err := s.db.Get(context.TODO(), PRIVATE_KEY).Bytes()
+func (s *RedisStorage) GetRSAPrivateKey(ctx context.Context) (*rsa.PrivateKey, string, error) {
+	privateKeyBytes, err := s.db.Get(ctx, PRIVATE_KEY).Bytes()
 	if err != nil {
 		return nil, "", err
 	}
-	keyId := s.db.Get(context.TODO(), PRIVATE_KEY_ID).Val()
+	keyId := s.db.Get(ctx, PRIVATE_KEY_ID).Val()
 	privateKey, _ := x509.ParsePKCS1PrivateKey(privateKeyBytes)
 	return privateKey, keyId, nil
 }
 
-func (s *RedisStorage) GetProvider() storage.Provider {
+func (s *RedisStorage) GetProvider(ctx context.Context) storage.Provider {
 	return s.provider
 }
 
-func (s *RedisStorage) GetOAuthProviderParams() storage.OAuthParams {
+func (s *RedisStorage) GetOAuthProviderParams(ctx context.Context) storage.OAuthParams {
 	rc := storage.OAuthParams{
-		ProviderRedirectURL: s.db.Get(context.TODO(), PROVIDER_REDIRECT_URL).Val(),
+		ProviderRedirectURL: s.db.Get(ctx, PROVIDER_REDIRECT_URL).Val(),
 	}
 	return rc
 }
 
-func (s *RedisStorage) SaveOAuthRequest(token string, request storage.OAuthRequest) error {
+func (s *RedisStorage) SaveOAuthRequest(ctx context.Context, token string, request storage.OAuthRequest) error {
 	// TODO: check for errors
 	// TODO: make sure expiration is atomic
 
@@ -189,21 +191,21 @@ func (s *RedisStorage) SaveOAuthRequest(token string, request storage.OAuthReque
 	requestTokenKey := AUTH_REQUEST_TOKEN + request.Code
 
 	// Set values
-	s.db.HSet(context.TODO(), requestKey, request)
-	s.db.Set(context.TODO(), requestTokenKey, requestKey, 0)
+	s.db.HSet(ctx, requestKey, request)
+	s.db.Set(ctx, requestTokenKey, requestKey, 0)
 
 	// Set expiration for keys
-	s.db.ExpireAt(context.TODO(), requestKey, time.Unix(request.Expires, 0))
-	s.db.ExpireAt(context.TODO(), requestTokenKey, time.Unix(request.Expires, 0))
+	s.db.ExpireAt(ctx, requestKey, time.Unix(request.Expires, 0))
+	s.db.ExpireAt(ctx, requestTokenKey, time.Unix(request.Expires, 0))
 
 	return nil
 }
 
-func (s *RedisStorage) GetAuthRequest(id string, approvalRequired bool) storage.OAuthRequest {
+func (s *RedisStorage) GetAuthRequest(ctx context.Context, id string, approvalRequired bool) storage.OAuthRequest {
 	rc := OAuthRequest{}
 	requestKey := AUTH_REQUEST + id
 
-	err := s.db.HGetAll(context.TODO(), requestKey).Scan(&rc)
+	err := s.db.HGetAll(ctx, requestKey).Scan(&rc)
 	if err != nil {
 		log.Println(err)
 	}
@@ -216,13 +218,13 @@ func (s *RedisStorage) GetAuthRequest(id string, approvalRequired bool) storage.
 	return rc.toStorageOAuthRequest()
 }
 
-func (s *RedisStorage) GetAuthRequestByCode(code string) storage.OAuthRequest {
+func (s *RedisStorage) GetAuthRequestByCode(ctx context.Context, code string) storage.OAuthRequest {
 	rc := OAuthRequest{}
 
 	requestTokenKey := AUTH_REQUEST_TOKEN + code
 
-	requestKey := s.db.Get(context.TODO(), requestTokenKey).Val()
-	err := s.db.HGetAll(context.TODO(), requestKey).Scan(&rc)
+	requestKey := s.db.Get(ctx, requestTokenKey).Val()
+	err := s.db.HGetAll(ctx, requestKey).Scan(&rc)
 	if err != nil {
 		log.Println(err)
 	}
@@ -248,19 +250,19 @@ func (s *RedisStorage) GenerateRandomString(length uint) string {
 	return *pwd
 }
 
-func (s *RedisStorage) ApproveAuthRequest(id string, user_id string) error {
+func (s *RedisStorage) ApproveAuthRequest(ctx context.Context, id string, user_id string) error {
 	requestKey := AUTH_REQUEST + id
-	res := s.db.HMSet(context.TODO(), requestKey, "approved", true, "user_id", user_id)
+	res := s.db.HMSet(ctx, requestKey, "approved", true, "user_id", user_id)
 	return res.Err()
 }
 
-func (s *RedisStorage) DeleteAuthRequest(id string) {
+func (s *RedisStorage) DeleteAuthRequest(ctx context.Context, id string) {
 	requestKey := AUTH_REQUEST + id
-	s.db.Del(context.TODO(), requestKey)
+	s.db.Del(ctx, requestKey)
 }
 
-func (s *RedisStorage) CreateApp(app storage.App) (storage.App, error) {
-	res := s.db.Incr(context.TODO(), APP_ID_COUNTER)
+func (s *RedisStorage) CreateApp(ctx context.Context, app storage.App) (storage.App, error) {
+	res := s.db.Incr(ctx, APP_ID_COUNTER)
 	appID, _ := res.Uint64()
 
 	obj := App{
@@ -271,7 +273,7 @@ func (s *RedisStorage) CreateApp(app storage.App) (storage.App, error) {
 	}
 
 	appKey := fmt.Sprintf("%s%d", APP, res.Val())
-	insertRes := s.db.HMSet(context.TODO(), appKey, obj)
+	insertRes := s.db.HMSet(ctx, appKey, obj)
 
 	storage_app := storage.App{
 		ID:           obj.ID,
@@ -281,19 +283,18 @@ func (s *RedisStorage) CreateApp(app storage.App) (storage.App, error) {
 	}
 
 	clientAppKey := CLIENT_APP + obj.ClientID
-	s.db.Set(context.TODO(), clientAppKey, appKey, 0)
+	s.db.Set(ctx, clientAppKey, appKey, 0)
 
 	return storage_app, insertRes.Err()
 }
 
-func (s *RedisStorage) GetApp(clientid string) storage.App {
-	log.Println(clientid)
+func (s *RedisStorage) GetApp(ctx context.Context, clientid string) storage.App {
 	rc := App{}
 
 	clientAppKey := CLIENT_APP + clientid
-	appKey := s.db.Get(context.TODO(), clientAppKey).Val()
+	appKey := s.db.Get(ctx, clientAppKey).Val()
 
-	s.db.HGetAll(context.TODO(), appKey).Scan(&rc)
+	s.db.HGetAll(ctx, appKey).Scan(&rc)
 
 	return storage.App{
 		ID:           rc.ID,
@@ -303,7 +304,7 @@ func (s *RedisStorage) GetApp(clientid string) storage.App {
 	}
 }
 
-func (s *RedisStorage) SaveOAuthToken(o storage.StoredOAuthToken) error {
+func (s *RedisStorage) SaveOAuthToken(ctx context.Context, o storage.StoredOAuthToken) error {
 	obj := StoredOAuthToken{
 		HashedAccessToken:   o.HashedAccessToken,
 		AccessTokenExpires:  o.AccessTokenExpires,
@@ -317,49 +318,49 @@ func (s *RedisStorage) SaveOAuthToken(o storage.StoredOAuthToken) error {
 	accessTokenExpires := time.Unix(obj.AccessTokenExpires, 0)
 	refreshTokenExpires := time.Unix(obj.RefreshTokenExpires, 0)
 
-	res := s.db.Incr(context.TODO(), SAVED_OAUTH_TOKEN_COUNTER)
+	res := s.db.Incr(ctx, SAVED_OAUTH_TOKEN_COUNTER)
 	tokenID := res.Val()
 
 	tokenKey := fmt.Sprintf("%s%d", SAVED_OAUTH_TOKEN, tokenID)
 
-	s.db.HSet(context.TODO(), tokenKey, obj)
-	s.db.ExpireAt(context.TODO(), tokenKey, accessTokenExpires)
+	s.db.HSet(ctx, tokenKey, obj)
+	s.db.ExpireAt(ctx, tokenKey, accessTokenExpires)
 
-	s.db.Set(context.TODO(), HASHED_TOKEN+obj.HashedAccessToken, tokenKey, 0)
-	s.db.ExpireAt(context.TODO(), HASHED_TOKEN+obj.HashedAccessToken, accessTokenExpires)
+	s.db.Set(ctx, HASHED_TOKEN+obj.HashedAccessToken, tokenKey, 0)
+	s.db.ExpireAt(ctx, HASHED_TOKEN+obj.HashedAccessToken, accessTokenExpires)
 
-	s.db.Set(context.TODO(), HASHED_REFRESH+obj.HashedRefreshToken, tokenKey, 0)
-	s.db.ExpireAt(context.TODO(), HASHED_REFRESH+obj.HashedRefreshToken, refreshTokenExpires)
+	s.db.Set(ctx, HASHED_REFRESH+obj.HashedRefreshToken, tokenKey, 0)
+	s.db.ExpireAt(ctx, HASHED_REFRESH+obj.HashedRefreshToken, refreshTokenExpires)
 
 	return nil
 }
 
-func (s *RedisStorage) GetOAuthTokenByHashedAccessToken(token string) storage.StoredOAuthToken {
+func (s *RedisStorage) GetOAuthTokenByHashedAccessToken(ctx context.Context, token string) storage.StoredOAuthToken {
 	rc := StoredOAuthToken{}
 
 	key := HASHED_TOKEN + token
-	oauthToken := s.db.Get(context.TODO(), key).Val()
-	res := s.db.HGetAll(context.TODO(), oauthToken).Scan(&rc)
+	oauthToken := s.db.Get(ctx, key).Val()
+	res := s.db.HGetAll(ctx, oauthToken).Scan(&rc)
 	log.Println(res)
 
 	return rc.toStorageOAuthToken()
 }
 
-func (s *RedisStorage) GetOAuthTokenByHashedRefreshToken(token string) storage.StoredOAuthToken {
+func (s *RedisStorage) GetOAuthTokenByHashedRefreshToken(ctx context.Context, token string) storage.StoredOAuthToken {
 	rc := StoredOAuthToken{}
 
 	key := HASHED_REFRESH + token
-	oauthToken := s.db.Get(context.TODO(), key).Val()
-	res := s.db.HGetAll(context.TODO(), oauthToken).Scan(&rc)
+	oauthToken := s.db.Get(ctx, key).Val()
+	res := s.db.HGetAll(ctx, oauthToken).Scan(&rc)
 	log.Println(res)
 
 	return rc.toStorageOAuthToken()
 }
 
-func (s *RedisStorage) InvalidateOAuthTokenByHashedAccessToken(token string) error {
+func (s *RedisStorage) InvalidateOAuthTokenByHashedAccessToken(ctx context.Context, token string) error {
 	key := HASHED_TOKEN + token
-	oauthToken := s.db.Get(context.TODO(), key).Val()
+	oauthToken := s.db.Get(ctx, key).Val()
 
-	res := s.db.Del(context.TODO(), oauthToken)
+	res := s.db.Del(ctx, oauthToken)
 	return res.Err()
 }
