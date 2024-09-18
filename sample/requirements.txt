@@ -1,0 +1,6 @@
+flask
+python-jose[cryptography]
+requests
+PyJWT
+gunicorn
+authlib
