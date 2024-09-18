@@ -27,6 +27,9 @@ func main() {
 	case "redis":
 		redisConnectionString := os.Getenv("REDIS_CONNECTION_STRING")
 		storage, _ = redis.NewRedisStorage(redisConnectionString, redirectUrl)
+	default:
+		log.Println("STORAGE var required")
+		return
 	}
 
 	authServer := server.AuthServer{Storage: storage}

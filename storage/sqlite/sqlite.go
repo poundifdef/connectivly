@@ -108,7 +108,7 @@ func (s *SQLiteStorage) initializeNew() error {
 
 	s.set("provider-name", "ACME Service")
 
-	api_key := s.GenerateRandomString(32)
+	api_key := "local-api-key"
 	s.set("api-key", s.Hash(api_key))
 
 	log.Println()

@@ -33,8 +33,8 @@ type AuthServer struct {
 // GenerateIDToken creates a signed JWT representing information about
 // the end user. This is required for OIDC. Satisfies this spec:
 // https://openid.net/specs/openid-connect-core-1_0.html#IDToken
-func (a *AuthServer) GenerateIDToken(user_id string, client_id string, nonce string) string {
-	key, key_id, err := a.Storage.GetRSAPrivateKey(context.Background())
+func (a *AuthServer) GenerateIDToken(ctx context.Context, user_id string, client_id string, nonce string) string {
+	key, key_id, err := a.Storage.GetRSAPrivateKey(ctx)
 	if err != nil {
 		log.Println(err)
 		return ""
@@ -66,8 +66,8 @@ func (a *AuthServer) GenerateIDToken(user_id string, client_id string, nonce str
 }
 
 // GenerateJWT creates JWTs that will be used as OAuth Bearer tokens
-func (a *AuthServer) GenerateJWT(user_id string, scopes []string, app storage.App, expiration time.Duration) string {
-	key, _, err := a.Storage.GetRSAPrivateKey(context.Background())
+func (a *AuthServer) GenerateJWT(ctx context.Context, user_id string, scopes []string, app storage.App, expiration time.Duration) string {
+	key, _, err := a.Storage.GetRSAPrivateKey(ctx)
 	if err != nil {
 		log.Println(err)
 		return ""
@@ -96,7 +96,7 @@ func (a *AuthServer) APIKeyMiddleware(c *fiber.Ctx) error {
 	}
 
 	api_key := c.Get("X-API-KEY")
-	if !a.Storage.ValidateAPIKey(context.Background(), api_key) {
+	if !a.Storage.ValidateAPIKey(c.Context(), api_key) {
 		return c.SendStatus(401)
 	}
 
@@ -106,7 +106,7 @@ func (a *AuthServer) APIKeyMiddleware(c *fiber.Ctx) error {
 func (a *AuthServer) GetAuthSession(c *fiber.Ctx) error {
 	session_id := c.Params("id")
 
-	ctx := context.Background()
+	ctx := c.Context()
 	session := a.Storage.GetAuthRequest(ctx, session_id, false)
 	app := a.Storage.GetApp(ctx, session.ClientID)
 
@@ -137,7 +137,7 @@ func (a *AuthServer) ApproveAuthSession(c *fiber.Ctx) error {
 		return err
 	}
 
-	err := a.Storage.ApproveAuthRequest(context.Background(), session_id, approve_input.User)
+	err := a.Storage.ApproveAuthRequest(c.Context(), session_id, approve_input.User)
 	if err != nil {
 		return err
 	}
@@ -155,7 +155,7 @@ func (a *AuthServer) ApproveAuthSession(c *fiber.Ctx) error {
 func (a *AuthServer) IntrospectToken(c *fiber.Ctx) error {
 	// This is NOT an oauth endpoint, it is an API endpoint for the provider
 
-	ctx := context.Background()
+	ctx := c.Context()
 	token := c.FormValue("token")
 
 	t := a.Storage.GetOAuthTokenByHashedAccessToken(ctx, a.Storage.Hash(token))
@@ -178,7 +178,7 @@ func (a *AuthServer) IntrospectToken(c *fiber.Ctx) error {
 func (a *AuthServer) DenyAuthSession(c *fiber.Ctx) error {
 	session_id := c.Params("id")
 
-	a.Storage.DeleteAuthRequest(context.Background(), session_id)
+	a.Storage.DeleteAuthRequest(c.Context(), session_id)
 
 	location, err := c.GetRouteURL("oauth.consent", fiber.Map{"id": session_id})
 	if err != nil {
@@ -191,7 +191,7 @@ func (a *AuthServer) DenyAuthSession(c *fiber.Ctx) error {
 }
 
 func (a *AuthServer) JWKS(c *fiber.Ctx) error {
-	ctx := context.Background()
+	ctx := c.Context()
 
 	key, key_name, err := a.Storage.GetRSAPublicKey(ctx)
 	if err != nil {
@@ -229,7 +229,7 @@ func (a *AuthServer) JWKS(c *fiber.Ctx) error {
 }
 
 func (a *AuthServer) ShowConsent(c *fiber.Ctx) error {
-	ctx := context.Background()
+	ctx := c.Context()
 	session_id := c.Params("id")
 
 	session := a.Storage.GetAuthRequest(ctx, session_id, true)
@@ -271,7 +271,7 @@ func (a *AuthServer) ShowConsent(c *fiber.Ctx) error {
 func (a *AuthServer) FinalizeConsent(c *fiber.Ctx) error {
 	// TODO: update scopes if they were modified
 
-	ctx := context.Background()
+	ctx := c.Context()
 	session_id := c.Params("id")
 	session := a.Storage.GetAuthRequest(ctx, session_id, true)
 
@@ -292,7 +292,7 @@ func (a *AuthServer) FinalizeConsent(c *fiber.Ctx) error {
 
 func (a *AuthServer) Authorize(c *fiber.Ctx) error {
 	// TODO: check client_id
-	ctx := context.Background()
+	ctx := c.Context()
 
 	providerParams := a.Storage.GetOAuthProviderParams(ctx)
 
@@ -334,9 +334,6 @@ func (a *AuthServer) Authorize(c *fiber.Ctx) error {
 	// https://auth0.com/docs/authenticate/protocols/oauth#authorization-endpoint
 
 	// TODO: return error format
-	if err != nil {
-		return err
-	}
 
 	oauth_request.Expires = time.Now().Add(10 * time.Minute).UTC().Unix()
 	oauth_request.ID = a.Storage.GenerateRandomString(32)
@@ -353,7 +350,7 @@ func (a *AuthServer) Authorize(c *fiber.Ctx) error {
 
 func (a *AuthServer) Token(c *fiber.Ctx) error {
 	// TODO: update scopes if they were modified
-	ctx := context.Background()
+	ctx := c.Context()
 
 	token_request := storage.TokenRequest{}
 	err := c.BodyParser(&token_request)
@@ -405,7 +402,7 @@ func (a *AuthServer) Token(c *fiber.Ctx) error {
 			})
 		}
 
-		access_token := a.GenerateJWT(session.UserID, session.Scopes(), app, expiration)
+		access_token := a.GenerateJWT(ctx, session.UserID, session.Scopes(), app, expiration)
 
 		refresh_token := a.Storage.GenerateRandomString(32)
 		if session.MaxAge != "" {
@@ -423,7 +420,7 @@ func (a *AuthServer) Token(c *fiber.Ctx) error {
 			RefreshToken: refresh_token,
 
 			// For OIDC
-			IDToken: a.GenerateIDToken(session.UserID, client_id, session.Nonce),
+			IDToken: a.GenerateIDToken(c.Context(), session.UserID, client_id, session.Nonce),
 		}
 
 		stored_token := storage.StoredOAuthToken{
@@ -448,7 +445,7 @@ func (a *AuthServer) Token(c *fiber.Ctx) error {
 			})
 		}
 
-		access_token := a.GenerateJWT(session.UserID, session.Scopes, app, expiration)
+		access_token := a.GenerateJWT(ctx, session.UserID, session.Scopes, app, expiration)
 		refresh_token := a.Storage.GenerateRandomString(32)
 
 		token := storage.OAuthToken{
@@ -535,7 +532,7 @@ func (a *AuthServer) getBearerToken(c *fiber.Ctx) string {
 func (a *AuthServer) Userinfo(c *fiber.Ctx) error {
 	token := a.getBearerToken(c)
 
-	t := a.Storage.GetOAuthTokenByHashedAccessToken(context.Background(), a.Storage.Hash(token))
+	t := a.Storage.GetOAuthTokenByHashedAccessToken(c.Context(), a.Storage.Hash(token))
 	if t.HashedAccessToken == "" {
 		c.Append("WWW-Authenticate", "error=\"invalid_token\"")
 		return c.SendStatus(401)
