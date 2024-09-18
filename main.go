@@ -2,8 +2,6 @@ package main
 
 import (
 	"connectivly/server"
-	"connectivly/storage"
-	"connectivly/storage/redis"
 	"connectivly/storage/sqlite"
 	"log"
 	"os"
@@ -17,19 +15,9 @@ func main() {
 		log.Fatal("Environment variable CONNECTIVLY_REDIRECT_URL required")
 	}
 
-	storageType := os.Getenv("STORAGE")
-
-	var storage storage.Storage
-
-	switch storageType {
-	case "sqlite":
-		storage, _ = sqlite.NewSQLiteStorage("connectivly.db", redirectUrl)
-	case "redis":
-		redisConnectionString := os.Getenv("REDIS_CONNECTION_STRING")
-		storage, _ = redis.NewRedisStorage(redisConnectionString, redirectUrl)
-	default:
-		log.Println("STORAGE var required")
-		return
+	storage, err := sqlite.NewSQLiteStorage("connectivly.db", redirectUrl)
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	authServer := server.AuthServer{Storage: storage}
