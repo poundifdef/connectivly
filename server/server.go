@@ -5,6 +5,7 @@ import (
 	"context"
 	"embed"
 	"encoding/base64"
+	"io"
 	"io/fs"
 	"log"
 	"net/http"
@@ -540,9 +541,30 @@ func (a *AuthServer) Userinfo(c *fiber.Ctx) error {
 		return c.SendStatus(401)
 	}
 
-	return c.JSON(fiber.Map{
-		"sub": t.UserID,
-	})
+	if a.UserinfoURL == "" {
+		return c.JSON(fiber.Map{
+			"sub": t.UserID,
+		})
+	}
+
+	req, err := http.NewRequest("GET", a.UserinfoURL, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	resp.Body.Close()
+
+	return c.Status(resp.StatusCode).Type("application/json").Send([]byte(body))
+
 }
 
 func (a *AuthServer) getClientCreds(c *fiber.Ctx) (client_id string, client_secret string) {
