@@ -4,6 +4,7 @@ go 1.25
 
 require (
 	github.com/MicahParks/jwkset v0.5.12
+	github.com/alecthomas/kong v1.12.1
 	github.com/gofiber/adaptor/v2 v2.2.1
 	github.com/gofiber/fiber/v2 v2.52.5
 	github.com/gofiber/template/html/v2 v2.1.1

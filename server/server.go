@@ -27,7 +27,9 @@ import (
 var embedDirTemplates embed.FS
 
 type AuthServer struct {
-	Storage storage.Storage
+	Storage     storage.Storage
+	Issuer      string
+	UserinfoURL string
 }
 
 // GenerateIDToken creates a signed JWT representing information about
@@ -42,7 +44,7 @@ func (a *AuthServer) GenerateIDToken(ctx context.Context, user_id string, client
 
 	claims := make(jwt.MapClaims)
 	// TODO: make this user-configurable
-	claims["iss"] = "https://www.connectivly.com"
+	claims["iss"] = a.Issuer
 	claims["sub"] = user_id
 	claims["aud"] = client_id
 	if nonce != "" {
@@ -494,7 +496,7 @@ func (a *AuthServer) OpenIDConfiguration(c *fiber.Ctx) error {
 	base_url := c.Protocol() + "://" + c.Hostname()
 
 	return c.JSON(fiber.Map{
-		"issuer":                 "https://www.connectivly.com",
+		"issuer":                 a.Issuer,
 		"authorization_endpoint": base_url + authorize_route,
 		"token_endpoint":         base_url + token_route,
 

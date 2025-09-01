@@ -5,4 +5,4 @@ RUN go mod download
 COPY ./ ./
 RUN go build connectivly
 EXPOSE 3000
-ENTRYPOINT ["./connectivly"]
+ENTRYPOINT ["./connectivly", "serve"]

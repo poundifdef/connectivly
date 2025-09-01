@@ -4,26 +4,32 @@ import (
 	"connectivly/server"
 	"connectivly/storage/sqlite"
 	"log"
-	"os"
+	"strconv"
+
+	"connectivly/config"
+
+	"github.com/alecthomas/kong"
 )
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
-	redirectUrl, found := os.LookupEnv("CONNECTIVLY_REDIRECT_URL")
-	if !found {
-		log.Fatal("Environment variable CONNECTIVLY_REDIRECT_URL required")
-	}
+	ctx := kong.Parse(&config.CLI)
+	log.Println(ctx)
 
-	storage, err := sqlite.NewSQLiteStorage("connectivly.db", redirectUrl)
+	storage, err := sqlite.NewSQLiteStorage(config.CLI.Serve.SQLitePath, config.CLI.Serve.RedirectURL)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	authServer := server.AuthServer{Storage: storage}
+	authServer := server.AuthServer{
+		Storage:     storage,
+		Issuer:      config.CLI.Serve.Issuer,
+		UserinfoURL: config.CLI.Serve.UserinfoURL,
+	}
 	app := authServer.GetAppFiber()
 
-	log.Println("Listening on :3000")
+	log.Println("Listening on :" + strconv.Itoa(config.CLI.Serve.Port))
 
-	app.Listen(":3000")
+	app.Listen(":" + strconv.Itoa(config.CLI.Serve.Port))
 }
