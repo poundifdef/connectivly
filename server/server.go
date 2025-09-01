@@ -7,12 +7,14 @@ import (
 	"encoding/base64"
 	"io"
 	"io/fs"
-	"log"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/MicahParks/jwkset"
 	"github.com/gofiber/adaptor/v2"
@@ -39,7 +41,7 @@ type AuthServer struct {
 func (a *AuthServer) GenerateIDToken(ctx context.Context, user_id string, client_id string, nonce string) string {
 	key, key_id, err := a.Storage.GetRSAPrivateKey(ctx)
 	if err != nil {
-		log.Println(err)
+		log.Error().Err(err).Msg("Failed to get private key")
 		return ""
 	}
 
@@ -62,7 +64,8 @@ func (a *AuthServer) GenerateIDToken(ctx context.Context, user_id string, client
 
 	token, err := j.SignedString(key)
 	if err != nil {
-		log.Fatalln(err)
+		log.Error().Err(err).Msg("Failed to sign ID token")
+		return ""
 	}
 
 	return token
@@ -72,7 +75,7 @@ func (a *AuthServer) GenerateIDToken(ctx context.Context, user_id string, client
 func (a *AuthServer) GenerateJWT(ctx context.Context, user_id string, scopes []string, app storage.App, expiration time.Duration) string {
 	key, _, err := a.Storage.GetRSAPrivateKey(ctx)
 	if err != nil {
-		log.Println(err)
+		log.Error().Err(err).Msg("Failed to get private key")
 		return ""
 	}
 
@@ -85,7 +88,8 @@ func (a *AuthServer) GenerateJWT(ctx context.Context, user_id string, scopes []s
 
 	token, err := jwt.NewWithClaims(jwt.SigningMethodRS256, claims).SignedString(key)
 	if err != nil {
-		log.Fatalln(err)
+		log.Error().Err(err).Msg("Failed to sign JWT")
+		return ""
 	}
 
 	return token
@@ -136,7 +140,7 @@ func (a *AuthServer) ApproveAuthSession(c *fiber.Ctx) error {
 	approve_input := ApproveInput{}
 
 	if err := c.BodyParser(&approve_input); err != nil {
-		log.Println(err)
+		log.Error().Err(err).Msg("Failed to parse approve input")
 		return err
 	}
 
@@ -308,6 +312,19 @@ func (a *AuthServer) Authorize(c *fiber.Ctx) error {
 		return c.Redirect(oauth_request.RedirectURI + "?" + params.Encode())
 	}
 
+	log.Debug().Interface("oauth_request", oauth_request).Msg("OAuth request")
+
+	app := a.Storage.GetApp(ctx, oauth_request.ClientID)
+	log.Debug().Interface("app", app).Msg("app")
+
+	found := slices.ContainsFunc(app.RedirectURI, func(s string) bool {
+		return strings.EqualFold(s, oauth_request.RedirectURI)
+	})
+
+	if !found {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid redirect_uri")
+	}
+
 	if oauth_request.Prompt == "none" {
 		params := url.Values{}
 		params.Add("error", "login_required")
@@ -358,7 +375,7 @@ func (a *AuthServer) Token(c *fiber.Ctx) error {
 	token_request := storage.TokenRequest{}
 	err := c.BodyParser(&token_request)
 	if err != nil {
-		log.Println(err)
+		log.Error().Err(err).Msg("Failed to parse token request")
 		return c.Status(400).JSON(fiber.Map{
 			"error":             "invalid_request",
 			"error_description": "Unable to parse POST body",
@@ -577,7 +594,7 @@ func (a *AuthServer) getClientCreds(c *fiber.Ctx) (client_id string, client_secr
 	bearer := strings.Split(auth_header, " ")[1]
 	client_token, err := base64.StdEncoding.DecodeString(bearer)
 	if err != nil {
-		log.Println(err)
+		log.Error().Err(err).Msg("Failed to decode client credentials")
 		return
 	}
 	clientid_secret := strings.Split(string(client_token), ":")
@@ -594,7 +611,7 @@ func (a *AuthServer) GetApp() http.HandlerFunc {
 func (a *AuthServer) GetAppFiber() *fiber.App {
 	serverRoot, err := fs.Sub(embedDirTemplates, "templates")
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("Failed to load templates")
 	}
 	engine := html.NewFileSystem(http.FS(serverRoot), ".html")
 	app := fiber.New(fiber.Config{

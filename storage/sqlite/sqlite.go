@@ -88,10 +88,23 @@ func NewSQLiteStorage(filename string, providerURL string) (*SQLiteStorage, erro
 }
 
 func (s *SQLiteStorage) setupDB() error {
-	s.db.AutoMigrate(&KeyValue{})
-	s.db.AutoMigrate(&OAuthRequest{})
-	s.db.AutoMigrate(&StoredOAuthToken{})
-	s.db.AutoMigrate(&App{})
+	err := s.db.AutoMigrate(&KeyValue{})
+	if err != nil {
+		return err
+	}
+
+	err = s.db.AutoMigrate(&OAuthRequest{})
+	if err != nil {
+		return err
+	}
+	err = s.db.AutoMigrate(&StoredOAuthToken{})
+	if err != nil {
+		return err
+	}
+	err = s.db.AutoMigrate(&App{})
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -119,22 +132,26 @@ func (s *SQLiteStorage) initializeNew() error {
 		Name:         "Client 1 App",
 		ClientID:     "client1",
 		ClientSecret: s.Hash("secret1"),
+		RedirectURI:  []string{"http://localhost:5000/auth"},
 	})
 
 	log.Println("Client 1 App")
 	log.Println("Client ID: client1")
 	log.Println("Client Secret: secret1")
+	log.Println("Redirect URI: http://localhost:5000/auth")
 	log.Println()
 
 	s.CreateApp(ctx, storage.App{
 		Name:         "Client 2 App",
 		ClientID:     "client2",
 		ClientSecret: s.Hash("secret2"),
+		RedirectURI:  []string{"http://localhost:5000/auth"},
 	})
 
 	log.Println("Client 2 App")
 	log.Println("Client ID: client2")
 	log.Println("Client Secret: secret2")
+	log.Println("Redirect URI: http://localhost:5000/auth")
 	log.Println()
 
 	scopes := make([]storage.Scope, 0)
@@ -258,18 +275,34 @@ func (s *SQLiteStorage) DeleteAuthRequest(ctx context.Context, id string) {
 }
 
 func (s *SQLiteStorage) CreateApp(ctx context.Context, app storage.App) (storage.App, error) {
+	var redirectURIBytes []byte
+	var err error
+	if app.RedirectURI != nil {
+		redirectURIBytes, err = json.Marshal(app.RedirectURI)
+		if err != nil {
+			return storage.App{}, err
+		}
+	}
+
 	obj := App{
 		Name:         app.Name,
 		ClientID:     app.ClientID,
 		ClientSecret: app.ClientSecret,
+		RedirectURI:  string(redirectURIBytes),
 	}
 	rc := s.db.Create(&obj)
+
+	var redirectURIs []string
+	if err := json.Unmarshal([]byte(obj.RedirectURI), &redirectURIs); err != nil {
+		return storage.App{}, err
+	}
 
 	storage_app := storage.App{
 		ID:           obj.ID,
 		Name:         obj.Name,
 		ClientID:     obj.ClientID,
 		ClientSecret: obj.ClientSecret,
+		RedirectURI:  redirectURIs,
 	}
 	return storage_app, rc.Error
 }
@@ -277,11 +310,18 @@ func (s *SQLiteStorage) CreateApp(ctx context.Context, app storage.App) (storage
 func (s *SQLiteStorage) GetApp(ctx context.Context, clientid string) storage.App {
 	rc := App{}
 	s.db.Where("client_id = ?", clientid).First(&rc)
+
+	var redirectURIs []string
+	if err := json.Unmarshal([]byte(rc.RedirectURI), &redirectURIs); err != nil {
+		return storage.App{}
+	}
+
 	return storage.App{
 		ID:           rc.ID,
 		Name:         rc.Name,
 		ClientID:     rc.ClientID,
 		ClientSecret: rc.ClientSecret,
+		RedirectURI:  redirectURIs,
 	}
 }
 

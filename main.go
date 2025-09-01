@@ -4,18 +4,21 @@ import (
 	"connectivly/server"
 	"connectivly/storage/sqlite"
 	"log"
+	"os"
 	"strconv"
 
 	"connectivly/config"
 
 	"github.com/alecthomas/kong"
+	"github.com/rs/zerolog"
+	zl "github.com/rs/zerolog/log"
 )
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	zl.Logger = zl.With().Caller().Logger().Output(zerolog.ConsoleWriter{Out: os.Stderr})
 
-	ctx := kong.Parse(&config.CLI)
-	log.Println(ctx)
+	kong.Parse(&config.CLI)
 
 	storage, err := sqlite.NewSQLiteStorage(config.CLI.Serve.SQLitePath, config.CLI.Serve.RedirectURL)
 	if err != nil {

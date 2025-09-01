@@ -61,4 +61,5 @@ type App struct {
 	ClientID     string
 	ClientSecret string
 	OwnerID      string
+	RedirectURI  string
 }
