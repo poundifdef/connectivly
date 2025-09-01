@@ -1,6 +1,6 @@
 module connectivly
 
-go 1.23.1
+go 1.25
 
 require (
 	github.com/MicahParks/jwkset v0.5.12
