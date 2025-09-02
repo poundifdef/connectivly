@@ -32,7 +32,7 @@ type App struct {
 	ID           uint     `json:"id"`
 	Name         string   `json:"name"`
 	ClientID     string   `json:"client_id"`
-	ClientSecret string   `json:"-"`
+	ClientSecret string   `json:"client_secret"`
 	RedirectURI  []string `json:"redirect_uri"`
 	OwnerID      string   `json:"-"`
 }

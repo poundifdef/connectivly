@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 
 	"github.com/MicahParks/jwkset"
@@ -604,6 +605,35 @@ func (a *AuthServer) getClientCreds(c *fiber.Ctx) (client_id string, client_secr
 	return
 }
 
+func (a *AuthServer) CreateApp(c *fiber.Ctx) error {
+	var createInput struct {
+		AppName     string   `json:"app_name"`
+		OwnerID     string   `json:"owner_id"`
+		RedirectURI []string `json:"redirect_uri"`
+	}
+	if err := c.BodyParser(&createInput); err != nil {
+		return err
+	}
+	new_app, err := a.Storage.CreateApp(c.Context(), storage.App{
+		Name:         createInput.AppName,
+		ClientID:     uuid.New().String(),
+		ClientSecret: uuid.New().String(),
+		RedirectURI:  createInput.RedirectURI,
+		OwnerID:      createInput.OwnerID,
+	})
+
+	if err != nil {
+		return err
+	}
+	return c.JSON(new_app)
+}
+
+func (a *AuthServer) ErrorHandler(c *fiber.Ctx, err error) error {
+	return c.Status(500).JSON(fiber.Map{
+		"error": err.Error(),
+	})
+}
+
 func (a *AuthServer) GetApp() http.HandlerFunc {
 	return adaptor.FiberApp(a.GetAppFiber())
 }
@@ -615,8 +645,9 @@ func (a *AuthServer) GetAppFiber() *fiber.App {
 	}
 	engine := html.NewFileSystem(http.FS(serverRoot), ".html")
 	app := fiber.New(fiber.Config{
-		Views:     engine,
-		Immutable: true,
+		Views:        engine,
+		Immutable:    true,
+		ErrorHandler: a.ErrorHandler,
 	})
 
 	app.Use(logger.New())
@@ -628,6 +659,7 @@ func (a *AuthServer) GetAppFiber() *fiber.App {
 
 	// Endpoints intended for the provider for manging sessions
 	api := app.Group("/api", a.APIKeyMiddleware)
+	api.Post("/app", a.CreateApp)
 
 	// Introspect and validate an OAuth token
 	api.Post("/introspect", a.IntrospectToken)

@@ -9,6 +9,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -57,7 +58,7 @@ func NewSQLiteStorage(filename string, providerURL string) (*SQLiteStorage, erro
 	_, err := os.Stat(s.filename)
 	needs_initialization := err != nil
 
-	gormConfig := &gorm.Config{}
+	gormConfig := &gorm.Config{TranslateError: true}
 	if os.Getenv("DEBUG") == "1" {
 		gormConfig.Logger = logger.Default.LogMode(logger.Info)
 	}
@@ -133,6 +134,7 @@ func (s *SQLiteStorage) initializeNew() error {
 		ClientID:     "client1",
 		ClientSecret: s.Hash("secret1"),
 		RedirectURI:  []string{"http://localhost:5000/auth"},
+		OwnerID:      "test",
 	})
 
 	log.Println("Client 1 App")
@@ -146,6 +148,7 @@ func (s *SQLiteStorage) initializeNew() error {
 		ClientID:     "client2",
 		ClientSecret: s.Hash("secret2"),
 		RedirectURI:  []string{"http://localhost:5000/auth"},
+		OwnerID:      "test",
 	})
 
 	log.Println("Client 2 App")
@@ -289,8 +292,16 @@ func (s *SQLiteStorage) CreateApp(ctx context.Context, app storage.App) (storage
 		ClientID:     app.ClientID,
 		ClientSecret: app.ClientSecret,
 		RedirectURI:  string(redirectURIBytes),
+		OwnerID:      app.OwnerID,
 	}
 	rc := s.db.Create(&obj)
+
+	if rc.Error != nil {
+		if errors.Is(rc.Error, gorm.ErrDuplicatedKey) {
+			return storage.App{}, errors.New("App with this name already exists")
+		}
+		return storage.App{}, rc.Error
+	}
 
 	var redirectURIs []string
 	if err := json.Unmarshal([]byte(obj.RedirectURI), &redirectURIs); err != nil {

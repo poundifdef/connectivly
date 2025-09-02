@@ -57,9 +57,9 @@ func (o StoredOAuthToken) toStorageOAuthToken() storage.StoredOAuthToken {
 
 type App struct {
 	gorm.Model
-	Name         string
+	Name         string `gorm:"uniqueIndex:compositeindex;index;not null"`
 	ClientID     string
 	ClientSecret string
-	OwnerID      string
+	OwnerID      string `gorm:"uniqueIndex:compositeindex;index;not null"`
 	RedirectURI  string
 }
