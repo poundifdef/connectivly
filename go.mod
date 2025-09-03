@@ -3,12 +3,12 @@ module connectivly
 go 1.25
 
 require (
-	github.com/MicahParks/jwkset v0.5.12
+	github.com/MicahParks/jwkset v0.9.6
 	github.com/alecthomas/kong v1.12.1
 	github.com/gofiber/adaptor/v2 v2.2.1
 	github.com/gofiber/fiber/v2 v2.52.9
 	github.com/gofiber/template/html/v2 v2.1.1
-	github.com/golang-jwt/jwt/v5 v5.0.0
+	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/uuid v1.6.0
 	github.com/m1/go-generate-password v0.2.0
 	github.com/rs/zerolog v1.34.0
@@ -34,5 +34,5 @@ require (
 	github.com/valyala/tcplisten v1.0.0 // indirect
 	golang.org/x/sys v0.35.0 // indirect
 	golang.org/x/text v0.20.0 // indirect
-	golang.org/x/time v0.5.0 // indirect
+	golang.org/x/time v0.9.0 // indirect
 )
