@@ -1,56 +1,264 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script src="https://cdn.tailwindcss.com"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authorization Request - SecureAuth</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .logo-placeholder {
+            background: linear-gradient(45deg, #e2e8f0, #cbd5e1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            color: #64748b;
+        }
+        
+        .accept-btn {
+            background: linear-gradient(90deg, #059669, #047857);
+            transition: all 0.3s ease;
+        }
+        
+        .accept-btn:hover {
+            background: linear-gradient(90deg, #047857, #065f46);
+            transform: translateY(-1px);
+        }
+        
+        .decline-btn {
+            background: linear-gradient(90deg, #6b7280, #4b5563);
+            transition: all 0.3s ease;
+        }
+        
+        .decline-btn:hover {
+            background: linear-gradient(90deg, #4b5563, #374151);
+            transform: translateY(-1px);
+        }
+        
+        .permission-item {
+            transition: all 0.2s ease;
+        }
+        
+        .permission-item:hover {
+            background-color: #f8fafc;
+        }
+        
+        .required-badge {
+            background-color: #e5e7eb;
+            color: #374151;
+        }
+        
+        .optional-badge {
+            background-color: #dbeafe;
+            color: #1d4ed8;
+        }
+        
+        .scope-tag {
+            background-color: #f3f4f6;
+            color: #6b7280;
+            font-family: 'Courier New', monospace;
+        }
+    </style>
 </head>
-<body>
+<body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-2xl">
+        <form method="post" action="{{.post_url}}">
+        <!-- Header -->
+        <div class="bg-white rounded-xl shadow-lg p-8 mb-6">
+            <div class="text-center mb-6">
+                <h1 class="text-2xl font-bold text-gray-900 mb-2">Authorization Request</h1>
+                <p class="text-gray-600">{{.app.Name}} wants to access your {{.providerName}} account</p>
+            </div>
+            
+            <script> /***
+            <!-- App Logos -->
+            <div class="flex items-center justify-center space-x-4 mb-8">
+                <!-- Source App Logo -->
+                <div class="logo-placeholder w-16 h-16 rounded-xl border-2 border-gray-200">
+                    PS
+                </div>
+                
+                <!-- Arrow -->
+                <div class="text-gray-400">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path>
+                    </svg>
+                </div>
+                
+                <!-- Provider Logo -->
+                <div class="logo-placeholder w-16 h-16 rounded-xl border-2 border-gray-200">
+                    SA
+                </div>
+            </div>
+            
+            <div class="text-center text-sm text-gray-500">
+                <strong>PhotoShare</strong> is requesting access to your <strong>SecureAuth</strong> account
+            </div>
+        ***/ </script>
+        </div>
 
-<div class="flex justify-center items-center h-screen bg-gray-100">
-    <form method="post" action="{{.post_url}}">
-    
-  <div class="max-w-sm p-6 bg-white rounded-lg shadow-md">
-    <div class="flex items-center justify-center mb-4">
-      <img src="https://via.placeholder.com/150" alt="Source App Logo" class="h-12 w-12 mr-4">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5l7 7-7 7" />
-      </svg>
-      <img src="https://via.placeholder.com/150" alt="Destination App Logo" class="h-12 w-12 ml-4">
+        <!-- Permissions Section -->
+        <div class="bg-white rounded-xl shadow-lg p-8 mb-6">
+            <div class="mb-2">
+                <h2 class="text-xl font-semibold text-gray-900">Permissions Requested</h2>
+                <!-- <p class="text-gray-600 text-sm mt-1">Some permissions are required to continue; others are optional and can be unchecked.</p> -->
+            </div>
+            
+                <div class="space-y-1 mt-6">
+                    <!-- Required: OpenID -->
+                    {{range $scope := .session.Scopes}}
+
+
+                    <div class="permission-item flex items-start py-4 px-3 rounded-lg">
+                      <div class="flex-shrink-0 mt-1 mr-4">
+                          <svg class="w-5 h-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                              <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                          </svg>
+                      </div>
+                      <div class="flex-1">
+                          <div class="flex items-center justify-between">
+                              <div class="flex items-center">
+                                  <h3 class="font-medium text-gray-900 mr-3">{{$scope}}</h3>
+                                  <span class="required-badge text-xs px-2 py-1 rounded-full font-medium">Required</span>
+                              </div>
+                              <!-- <span class="text-sm text-gray-500">OIDC</span> -->
+                          </div>
+                          <p class="text-sm text-gray-600 mt-1">
+                            <!-- Authenticate with OpenID Connect; returns an ID Token identifying you to the app. -->
+                          </p>
+                          <!-- <div class="mt-2 text-xs text-gray-500">
+                              <strong>Why PhotoShare needs this:</strong> To securely verify your identity and log you in
+                          </div> -->
+                      </div>
+                  </div>
+
+
+                    {{end}}
+
+                    <hr class="border-gray-100">
+
+                    <!-- Optional Section Header -->
+                    <!-- <div class="pt-4 pb-2">
+                        <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide">Optional</h3>
+                    </div> -->
+
+                    <!-- Optional: Profile -->
+                    <!-- <label class="permission-item flex items-start py-4 px-3 rounded-lg cursor-pointer">
+                        <div class="flex-shrink-0 mt-1 mr-4">
+                            <input type="checkbox" name="profile_scope" class="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500" checked>
+                        </div>
+                        <div class="flex-1">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center">
+                                    <h3 class="font-medium text-gray-900 mr-3">profile</h3>
+                                    <span class="optional-badge text-xs px-2 py-1 rounded-full font-medium">Optional</span>
+                                </div>
+                                <span class="text-sm text-gray-500">Read</span>
+                            </div>
+                            <p class="text-sm text-gray-600 mt-1">Name, username, and general profile info (per your provider settings).</p>
+                            <div class="mt-2 text-xs text-gray-500">
+                                <strong>Why PhotoShare wants this:</strong> To display your name and profile picture when you share photos with friends
+                            </div>
+                        </div>
+                    </label> -->
+
+                    <!-- Optional: Email -->
+                    <!-- <label class="permission-item flex items-start py-4 px-3 rounded-lg cursor-pointer">
+                        <div class="flex-shrink-0 mt-1 mr-4">
+                            <input type="checkbox" name="email_scope" class="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                        </div>
+                        <div class="flex-1">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center">
+                                    <h3 class="font-medium text-gray-900 mr-3">email</h3>
+                                    <span class="optional-badge text-xs px-2 py-1 rounded-full font-medium">Optional</span>
+                                </div>
+                                <span class="text-sm text-gray-500">Read</span>
+                            </div>
+                            <p class="text-sm text-gray-600 mt-1">Access to your primary email address and verification status.</p>
+                            <div class="mt-2 text-xs text-gray-500">
+                                <strong>Why PhotoShare wants this:</strong> To send you notifications when friends comment on your photos and for password reset emails
+                            </div>
+                        </div>
+                    </label> -->
+
+                    <!-- Optional: Offline Access -->
+                    <!-- <label class="permission-item flex items-start py-4 px-3 rounded-lg cursor-pointer">
+                        <div class="flex-shrink-0 mt-1 mr-4">
+                            <input type="checkbox" name="offline_access" class="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                        </div>
+                        <div class="flex-1">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center">
+                                    <h3 class="font-medium text-gray-900 mr-3">offline_access</h3>
+                                    <span class="optional-badge text-xs px-2 py-1 rounded-full font-medium">Optional</span>
+                                </div>
+                                <span class="text-sm text-gray-500">Access</span>
+                            </div>
+                            <p class="text-sm text-gray-600 mt-1">Allow the app to access your account when you're not actively using it.</p>
+                            <div class="mt-2 text-xs text-gray-500">
+                                <strong>Why PhotoShare wants this:</strong> To automatically sync your photos and process uploads in the background, even when you're not using the app
+                            </div>
+                        </div>
+                    </label> -->
+
+                    <!-- Optional: Phone -->
+                    <!-- <label class="permission-item flex items-start py-4 px-3 rounded-lg cursor-pointer">
+                        <div class="flex-shrink-0 mt-1 mr-4">
+                            <input type="checkbox" name="phone_scope" class="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                        </div>
+                        <div class="flex-1">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center">
+                                    <h3 class="font-medium text-gray-900 mr-3">phone</h3>
+                                    <span class="optional-badge text-xs px-2 py-1 rounded-full font-medium">Optional</span>
+                                </div>
+                                <span class="text-sm text-gray-500">Read</span>
+                            </div>
+                            <p class="text-sm text-gray-600 mt-1">Access to your phone number for two-factor authentication.</p>
+                            <div class="mt-2 text-xs text-gray-500">
+                                <strong>Why PhotoShare wants this:</strong> To add an extra layer of security to your account with SMS verification codes
+                            </div>
+                        </div>
+                    </label> -->
+                </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="bg-white rounded-xl shadow-lg p-8">
+            <div class="flex flex-col sm:flex-row gap-4">
+                <button type="submit" name="decline" value="Decline" class="decline-btn flex-1 text-white font-semibold py-3 px-6 rounded-lg shadow-lg">
+                    <span class="flex items-center justify-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                        Decline
+                    </span>
+                </button>
+                
+                <button type="submit" name="accept" value="Accept" class="accept-btn flex-1 text-white font-semibold py-3 px-6 rounded-lg shadow-lg">
+                    <span class="flex items-center justify-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        Accept & Continue
+                    </span>
+                </button>
+            </div>
+            
+            <!-- <div class="mt-6 text-center">
+                <p class="text-xs text-gray-500">
+                    By clicking "Accept & Continue", you agree to share the selected information with PhotoShare. 
+                    You can revoke access at any time in your account settings.
+                </p>
+            </div> -->
+        </div>
+
+        <!-- Footer -->
+        <!-- <div class="text-center mt-8 text-sm text-gray-500">
+            <p>Powered by <strong>SecureAuth</strong> • <a href="#" class="text-blue-600 hover:text-blue-800">Privacy Policy</a> • <a href="#" class="text-blue-600 hover:text-blue-800">Terms of Service</a></p>
+        </div> -->
+      </form>
     </div>
-
-    <h2 class="text-lg font-semibold text-gray-800 mb-4">Authorize {{.app.Name}} to access {{.providerName}}</h2>
-
-    <p class="text-sm text-gray-600 mb-6">
-        The app is requesting the following permissions:
-    </p>
-    <div class="flex flex-col space-y-4">
-      <!-- <div class="flex items-center space-x-2">
-        <input type="checkbox" id="toggle1" class="form-checkbox h-5 w-5 text-blue-600 transition duration-150 ease-in-out">
-        <label for="toggle1" class="ml-3 block text-sm font-medium text-gray-700">
-          View your profile information
-        </label>
-      </div> -->
-
-      {{range $scope := .session.Scopes}}
-
-      <div class="flex items-center space-x-2">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        <span class="text-sm text-gray-600">{{$scope}}</span>
-      </div>
-
-      {{end}}
-
-    </div>
-    <div class="mt-6 flex space-x-4">
-      <input type="submit" name="accept" value="Accept" class="w-1/2 py-2 px-4 bg-blue-500 text-white font-bold rounded hover:bg-blue-700 transition duration-300">
-      <input type="submit" name="decline" value="Decline" class="w-1/2 py-2 px-4 bg-gray-500 text-white font-bold rounded hover:bg-gray-700 transition duration-300">
-    </div>
-  </div>
-    </form>
-</div>
-
 </body>
 </html>
