@@ -11,10 +11,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/m1/go-generate-password/generator"
 	"gorm.io/driver/sqlite"
@@ -40,7 +41,7 @@ func (m SQLiteStorageProvider) Scopes(ctx context.Context) []storage.Scope {
 	scopes_json := m.storage.get("provider-scopes")
 	err := json.Unmarshal([]byte(scopes_json), &rc)
 	if err != nil {
-		log.Println(err)
+		log.Error().Err(err).Msg("Failed to unmarshal scopes")
 	}
 	return rc
 }
@@ -51,7 +52,7 @@ type SQLiteStorage struct {
 	provider storage.Provider
 }
 
-func NewSQLiteStorage(filename string, providerURL string) (*SQLiteStorage, error) {
+func NewSQLiteStorage(filename string, providerURL string, apiKey string, providerName string) (*SQLiteStorage, error) {
 	s := &SQLiteStorage{filename: filename}
 
 	// If the DB is brand new, populate with basic information
@@ -73,9 +74,11 @@ func NewSQLiteStorage(filename string, providerURL string) (*SQLiteStorage, erro
 	s.setupDB()
 
 	s.set("provider-redirect-url", providerURL)
+	s.set("provider-name", providerName)
+	s.set("api-key", s.Hash(apiKey))
 
 	if needs_initialization {
-		log.Println("Initializing new Connectivly instance at " + filename)
+		log.Info().Str("filename", filename).Msg("Initializing new Connectivly instance")
 
 		err := s.initializeNew()
 		if err != nil {
@@ -115,19 +118,10 @@ func (s *SQLiteStorage) initializeNew() error {
 	ctx := context.Background()
 	key, err := rsa.GenerateKey(rand.Reader, 4096)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("Failed to generate keypair")
 	}
 	s.setBytes("private-key", x509.MarshalPKCS1PrivateKey(key))
-	s.set("private-key-id", "connectivly-example-key")
-
-	s.set("provider-name", "ACME Service")
-
-	api_key := "local-api-key"
-	s.set("api-key", s.Hash(api_key))
-
-	log.Println()
-	log.Println("API Key: " + api_key)
-	log.Println()
+	s.set("private-key-id", "connectivly-generated-key")
 
 	s.CreateApp(ctx, storage.App{
 		Name:         "Client 1 App",
@@ -137,11 +131,7 @@ func (s *SQLiteStorage) initializeNew() error {
 		OwnerID:      "test",
 	})
 
-	log.Println("Client 1 App")
-	log.Println("Client ID: client1")
-	log.Println("Client Secret: secret1")
-	log.Println("Redirect URI: http://localhost:5000/auth")
-	log.Println()
+	log.Info().Str("App", "Client 1 App").Str("Client ID", "client1").Str("Client Secret", "secret1").Str("Redirect URI", "http://localhost:5000/auth").Msg("Created app")
 
 	s.CreateApp(ctx, storage.App{
 		Name:         "Client 2 App",
@@ -151,17 +141,13 @@ func (s *SQLiteStorage) initializeNew() error {
 		OwnerID:      "test",
 	})
 
-	log.Println("Client 2 App")
-	log.Println("Client ID: client2")
-	log.Println("Client Secret: secret2")
-	log.Println("Redirect URI: http://localhost:5000/auth")
-	log.Println()
+	log.Info().Str("App", "Client 2 App").Str("Client ID", "client2").Str("Client Secret", "secret2").Str("Redirect URI", "http://localhost:5000/auth").Msg("Created app")
 
 	scopes := make([]storage.Scope, 0)
 	scopes = append(scopes, storage.Scope{ID: "openid", Name: "OIDC", Description: "OpenID Connect"})
 	scopes_json, err := json.Marshal(&scopes)
 	if err != nil {
-		log.Println(err)
+		log.Error().Err(err).Msg("Failed to marshal scopes")
 	}
 
 	s.set("provider-scopes", string(scopes_json))
@@ -268,7 +254,7 @@ func (s *SQLiteStorage) GenerateRandomString(length uint) string {
 func (s *SQLiteStorage) ApproveAuthRequest(ctx context.Context, id string, user_id string) error {
 	// rc := s.db.Model(&OAuthRequest{}).Where("id=?", id).Update("approved", true).Update("user_id", user_id)
 	rc := s.db.Model(&OAuthRequest{}).Where("id=?", id).Updates(&OAuthRequest{Approved: true, UserID: user_id})
-	log.Println(rc.Error)
+	log.Error().Err(rc.Error).Msg("Failed to approve auth request")
 
 	return rc.Error
 }

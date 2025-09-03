@@ -3,7 +3,6 @@ package main
 import (
 	"connectivly/server"
 	"connectivly/storage/sqlite"
-	"log"
 	"os"
 	"strconv"
 
@@ -11,18 +10,22 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/rs/zerolog"
-	zl "github.com/rs/zerolog/log"
+	"github.com/rs/zerolog/log"
 )
 
 func main() {
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	zl.Logger = zl.With().Caller().Logger().Output(zerolog.ConsoleWriter{Out: os.Stderr})
+	log.Logger = log.With().Caller().Logger().Output(zerolog.ConsoleWriter{Out: os.Stderr})
 
 	kong.Parse(&config.CLI)
 
-	storage, err := sqlite.NewSQLiteStorage(config.CLI.Serve.SQLitePath, config.CLI.Serve.RedirectURL)
+	storage, err := sqlite.NewSQLiteStorage(
+		config.CLI.Serve.SQLitePath,
+		config.CLI.Serve.RedirectURL,
+		config.CLI.Serve.APIKey,
+		config.CLI.Serve.ProviderName,
+	)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("Failed to initialize storage")
 	}
 
 	authServer := server.AuthServer{
@@ -32,7 +35,7 @@ func main() {
 	}
 	app := authServer.GetAppFiber()
 
-	log.Println("Listening on :" + strconv.Itoa(config.CLI.Serve.Port))
+	log.Info().Msg("Listening on :" + strconv.Itoa(config.CLI.Serve.Port))
 
 	app.Listen(":" + strconv.Itoa(config.CLI.Serve.Port))
 }
